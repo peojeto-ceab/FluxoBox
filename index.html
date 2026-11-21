@@ -30,7 +30,7 @@
       line-height: 1.5;
     }
 
-    .container { max-width: 920px; margin: 0 auto; }
+    .container { max-width: 920px; margin: 0 auto; overflow-x: clip; }
 
     header {
       display: flex;
@@ -63,6 +63,7 @@
       border-radius: 12px;
       padding: 18px;
       margin-bottom: 18px;
+      overflow-x: clip;
     }
 
     .card-title {
@@ -78,9 +79,13 @@
 
     .form-grid {
       display: grid;
-      grid-template-columns: 1fr 180px auto;
+      grid-template-columns: 1fr 1fr;
       gap: 10px;
       margin-bottom: 14px;
+    }
+
+    .form-grid .full-row {
+      grid-column: 1 / -1;
     }
 
     .form-categorias {
@@ -90,8 +95,8 @@
       margin-bottom: 14px;
     }
 
-    @media (max-width: 640px) {
-      .form-grid, .form-categorias { grid-template-columns: 1fr; }
+    @media (max-width: 720px) {
+      .form-categorias { grid-template-columns: 1fr; }
     }
 
     input, select {
@@ -182,13 +187,14 @@
 
     .tabela-scroll {
       width: 100%;
+      max-width: 100%;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
 
     .tabela-scroll table {
       width: 100%;
-      min-width: 520px;
+      min-width: 0;
       border-collapse: collapse;
       font-size: 0.92rem;
     }
@@ -211,25 +217,22 @@
       white-space: nowrap;
     }
 
-    td.num { width: 65px; font-weight: 700; color: var(--muted); }
+    td.num { width: 55px; font-weight: 700; color: var(--muted); }
+    td.venc { white-space: nowrap; color: #cbd5e1; font-weight: 600; }
     td.val { font-weight: 700; white-space: nowrap; }
 
     @media (max-width: 600px) {
-      .tabela-scroll table {
-        min-width: 480px;
-      }
-
       .tabela-scroll th,
       .tabela-scroll td {
-        padding: 8px 6px;
-        font-size: 12px;
-        white-space: nowrap;
+        padding: 7px 5px;
+        font-size: 11px;
       }
 
       .tabela-scroll .btn-edit,
       .tabela-scroll .btn-danger {
-        padding: 5px 8px;
-        font-size: 11px;
+        padding: 4px 6px;
+        font-size: 10px;
+        margin-right: 3px;
       }
     }
 
@@ -381,9 +384,10 @@
       <div class="card-title">1. Contas a Pagar</div>
 
       <form id="formDespesa" class="form-grid">
-        <input type="text" id="descricao" placeholder="Descrição da conta (ex: Energia, Internet, Boleto)" required />
-        <input type="text" id="valor" placeholder="Valor em R$ (ex: 150,00)" required />
-        <button type="submit" class="btn-add">Adicionar</button>
+        <input type="text" id="descricao" class="full-row" placeholder="Descrição da conta (ex: Coelba, Claro)" required />
+        <input type="text" id="vencimento" placeholder="Data (ex: 21 ou 21/11)" required />
+        <input type="text" id="valor" placeholder="Valor em R$ (ex: 134,15)" required />
+        <button type="submit" class="btn-add full-row">Adicionar</button>
       </form>
 
       <div class="actions-bar">
@@ -392,11 +396,14 @@
 
       <div id="tituloNota" class="nota-header">NOTA GERAL — NOVEMBRO/2026</div>
 
+      <div class="filtros" id="barraFiltrosDia"></div>
+
       <div class="tabela-scroll">
         <table>
           <thead>
             <tr>
               <th>Nº</th>
+              <th>Data</th>
               <th>Descrição</th>
               <th>Valor</th>
               <th class="acoes-col">Ações</th>
@@ -529,9 +536,12 @@
     const CATEGORIAS_ENTRADA = ["Frete", "Vendas"];
     const CATEGORIAS_SAIDA_CASA = ["Casa", "Mercado", "Farmácia"];
 
+    let filtroDiaAtual = "Todos";
     let filtroAtual = "Todas";
     let etapaModalNovoMes = "input";
     let proximoMesPendente = "";
+    let salvandoNaNuvem = false;
+    let salvarPendente = false;
 
     const supabaseClient =
       typeof window.supabase !== "undefined"
@@ -539,6 +549,35 @@
         : null;
 
     let estado = carregarEstadoLocal();
+
+    function formatarVencimentoTexto(venc) {
+      const limpo = String(venc || "").trim();
+      if (!limpo) return "-";
+      if (/^\d{1,2}$/.test(limpo)) {
+        return limpo.padStart(2, "0");
+      }
+      return limpo;
+    }
+
+    function extrairChaveDiaVencimento(venc) {
+      const fmt = formatarVencimentoTexto(venc);
+      if (fmt === "-") return "";
+      const matchInicio = fmt.match(/^(\d{1,2})(?:[\/\-]|$)/);
+      if (matchInicio) {
+        return matchInicio[1].padStart(2, "0");
+      }
+      return fmt;
+    }
+
+    function normalizarDespesas(lista) {
+      return Array.isArray(lista)
+        ? lista.map((d) => ({
+            descricao: d.descricao || "",
+            vencimento: formatarVencimentoTexto(d.vencimento),
+            valor: Number(d.valor) || 0
+          }))
+        : [];
+    }
 
     function normalizarNomeCategoria(cat) {
       if (CATEGORIAS_SAIDA_CASA.includes(cat)) return "Casa";
@@ -555,7 +594,7 @@
       if (!Array.isArray(lista)) return [];
       return lista.map((ciclo) => ({
         mesAno: ciclo.mesAno || "MÊS/ANO",
-        despesas: Array.isArray(ciclo.despesas) ? ciclo.despesas : [],
+        despesas: normalizarDespesas(ciclo.despesas),
         categorias: normalizarListaCategorias(ciclo.categorias),
         excelContasUrl: ciclo.excelContasUrl || "",
         excelCategoriasUrl: ciclo.excelCategoriasUrl || ""
@@ -565,7 +604,7 @@
     function normalizarEstadoCompleto(raw) {
       return {
         mesAno: (raw && raw.mesAno) || (raw && raw.mes_ano) || "NOVEMBRO/2026",
-        despesas: Array.isArray(raw && raw.despesas) ? raw.despesas : [],
+        despesas: normalizarDespesas(raw && raw.despesas),
         categorias: normalizarListaCategorias(raw && raw.categorias),
         historico: normalizarHistorico(raw && raw.historico)
       };
@@ -600,12 +639,8 @@
     }
 
     function montarWorkbookContas(mesRef, despesasRef) {
-      const itensContas = (despesasRef || []).map((d) => ({
-        categoria: "Contas a Pagar",
-        descricao: d.descricao,
-        valor: d.valor
-      }));
-      const ws = criarPlanilhaNoModelo(itensContas, false);
+      const itensContas = normalizarDespesas(despesasRef);
+      const ws = criarPlanilhaContasModelo(itensContas);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Planilha1");
       const nomeArquivo = `Contas_a_Pagar_${String(mesRef || "").replace(/[^a-zA-Z0-9_-]/g, "_")}.xlsx`;
@@ -666,12 +701,20 @@
       return { excelContasUrl, excelCategoriasUrl, ok: true };
     }
 
-    async function salvarNoSupabase(cicloEncerradoParaExcel = null) {
+    async function salvarNoSupabase(cicloEncerradoParaExcel = null, sincronizarExcel = true) {
       salvarEstadoLocal();
       if (!supabaseClient) {
         atualizarStatusNuvem("Sincronização na nuvem indisponível no momento.");
         return false;
       }
+
+      if (salvandoNaNuvem && !cicloEncerradoParaExcel) {
+        salvarPendente = true;
+        return true;
+      }
+
+      salvandoNaNuvem = true;
+      atualizarStatusNuvem("Sincronizando alterações na nuvem...");
 
       try {
         if (cicloEncerradoParaExcel) {
@@ -690,7 +733,7 @@
             salvarEstadoLocal();
             renderizarHistorico();
           }
-        } else {
+        } else if (sincronizarExcel) {
           await enviarPacoteExcelCompleto(
             estado.mesAno,
             estado.despesas,
@@ -698,34 +741,40 @@
             "atual"
           );
         }
+
+        const { error } = await supabaseClient
+          .from("fluxobox_estado")
+          .upsert({
+            id: REGISTRO_ID,
+            mes_ano: estado.mesAno,
+            despesas: estado.despesas,
+            categorias: estado.categorias,
+            historico: normalizarHistorico(estado.historico),
+            atualizado_em: new Date().toISOString()
+          });
+
+        if (error) {
+          atualizarStatusNuvem(`Erro ao sincronizar na nuvem: <strong>${escaparHTML(error.message)}</strong>`);
+          return false;
+        }
+
+        atualizarStatusNuvem(`Sincronizado na nuvem (${estado.historico.length} mês(es) no histórico).`);
+        return true;
       } catch (err) {
-        atualizarStatusNuvem(`Erro ao enviar Excel na nuvem: <strong>${escaparHTML(err.message)}</strong>`);
+        atualizarStatusNuvem(`Erro ao enviar para a nuvem: <strong>${escaparHTML(err.message)}</strong>`);
         return false;
+      } finally {
+        salvandoNaNuvem = false;
+        if (salvarPendente) {
+          salvarPendente = false;
+          salvarNoSupabase(null, false);
+        }
       }
-
-      const { error } = await supabaseClient
-        .from("fluxobox_estado")
-        .upsert({
-          id: REGISTRO_ID,
-          mes_ano: estado.mesAno,
-          despesas: estado.despesas,
-          categorias: estado.categorias,
-          historico: normalizarHistorico(estado.historico),
-          atualizado_em: new Date().toISOString()
-        });
-
-      if (error) {
-        atualizarStatusNuvem(`Erro ao sincronizar na nuvem: <strong>${escaparHTML(error.message)}</strong>`);
-        return false;
-      }
-
-      atualizarStatusNuvem(`Planilhas Excel sincronizadas na nuvem (${estado.historico.length} mês(es) no histórico).`);
-      return true;
     }
 
     async function sincronizarComSupabase(mostrarFeedback = false) {
-      if (!supabaseClient) {
-        atualizarStatusNuvem("Sincronização na nuvem indisponível no momento.");
+      if (!supabaseClient || salvandoNaNuvem) {
+        if (!supabaseClient) atualizarStatusNuvem("Sincronização na nuvem indisponível no momento.");
         return;
       }
 
@@ -741,18 +790,71 @@
       }
 
       if (data) {
-        estado = normalizarEstadoCompleto(data);
+        const novoEstado = normalizarEstadoCompleto(data);
+        const mudou = JSON.stringify(novoEstado) !== JSON.stringify(estado);
+        estado = novoEstado;
         salvarEstadoLocal();
-        renderizar();
+        if (mudou || mostrarFeedback) {
+          renderizar();
+        }
         atualizarStatusNuvem(
-          `Atualizado na nuvem (${estado.historico.length} mês(es) no histórico).`
+          `Sincronizado na nuvem (${estado.historico.length} mês(es) no histórico).`
         );
       } else {
-        await salvarNoSupabase();
+        await salvarNoSupabase(null, true);
         if (mostrarFeedback) {
           atualizarStatusNuvem("Registro inicial criado na nuvem.");
         }
       }
+    }
+
+    function iniciarSincronizacaoTempoReal() {
+      if (!supabaseClient) return;
+
+      try {
+        supabaseClient
+          .channel("fluxobox-sync-tempo-real")
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "fluxobox_estado",
+              filter: `id=eq.${REGISTRO_ID}`
+            },
+            (payload) => {
+              if (salvandoNaNuvem) return;
+              const novoRegistro = payload && payload.new;
+              if (!novoRegistro) return;
+              const novoEstado = normalizarEstadoCompleto(novoRegistro);
+              if (JSON.stringify(novoEstado) !== JSON.stringify(estado)) {
+                estado = novoEstado;
+                salvarEstadoLocal();
+                renderizar();
+                atualizarStatusNuvem(
+                  `Atualizado em tempo real (${estado.historico.length} mês(es) no histórico).`
+                );
+              }
+            }
+          )
+          .subscribe();
+      } catch (e) {}
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          sincronizarComSupabase(false);
+        }
+      });
+
+      window.addEventListener("focus", () => {
+        sincronizarComSupabase(false);
+      });
+
+      setInterval(() => {
+        if (document.visibilityState === "visible") {
+          sincronizarComSupabase(false);
+        }
+      }, 10000);
     }
 
     function parseValorBRL(texto) {
@@ -810,9 +912,85 @@
       return String(i + 1).padStart(2, "0");
     }
 
+    function definirFiltroDia(dia) {
+      filtroDiaAtual = dia;
+      renderizarContas();
+    }
+
+    function renderizarBotoesFiltroDia() {
+      const container = document.getElementById("barraFiltrosDia");
+      if (!container) return;
+
+      const diasSet = new Set();
+      estado.despesas.forEach((d) => {
+        const chave = extrairChaveDiaVencimento(d.vencimento);
+        if (chave) diasSet.add(chave);
+      });
+
+      const diasOrdenados = Array.from(diasSet).sort((a, b) => {
+        const numA = parseInt(a, 10);
+        const numB = parseInt(b, 10);
+        if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+          return numA - numB;
+        }
+        return a.localeCompare(b, "pt-BR");
+      });
+
+      if (filtroDiaAtual !== "Todos" && !diasSet.has(filtroDiaAtual)) {
+        filtroDiaAtual = "Todos";
+      }
+
+      const opcoes = ["Todos", ...diasOrdenados];
+      container.innerHTML = opcoes
+        .map((dia) => {
+          const ativo = filtroDiaAtual === dia ? " ativo" : "";
+          const label = dia === "Todos" ? "Todos" : `Dia ${escaparHTML(dia)}`;
+          return `<button type="button" class="filtro-btn${ativo}" data-dia="${escaparHTML(dia)}" onclick="definirFiltroDia('${escaparHTML(dia)}')">${label}</button>`;
+        })
+        .join("");
+    }
+
+    function renderizarContas() {
+      renderizarBotoesFiltroDia();
+
+      const tbody = document.getElementById("corpoNota");
+      tbody.innerHTML = "";
+
+      const listaFiltrada = estado.despesas
+        .map((item, realIdx) => ({ ...item, realIdx }))
+        .filter((item) => {
+          if (filtroDiaAtual === "Todos") return true;
+          return extrairChaveDiaVencimento(item.vencimento) === filtroDiaAtual;
+        });
+
+      if (listaFiltrada.length === 0) {
+        const msgVazio =
+          filtroDiaAtual === "Todos"
+            ? "Nenhuma conta registrada neste mês."
+            : `Nenhuma conta com data no Dia ${escaparHTML(filtroDiaAtual)} neste mês.`;
+        tbody.innerHTML = `<tr><td colspan="5" class="empty">${msgVazio}</td></tr>`;
+        return;
+      }
+
+      listaFiltrada.forEach((item, idx) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="num">${formatarNumeroOrdem(idx)}</td>
+          <td class="venc">${escaparHTML(formatarVencimentoTexto(item.vencimento))}</td>
+          <td>${escaparHTML(item.descricao)}</td>
+          <td class="val">${formatarBRL(item.valor)}</td>
+          <td class="acoes">
+            <button type="button" class="btn-edit" onclick="corrigirDespesa(${item.realIdx})">Corrigir</button>
+            <button type="button" class="btn-danger" onclick="excluirDespesa(${item.realIdx})">Excluir</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
     function definirFiltro(tipo) {
       filtroAtual = tipo;
-      document.querySelectorAll(".filtro-btn").forEach((btn) => {
+      document.querySelectorAll("#barraFiltros .filtro-btn").forEach((btn) => {
         btn.classList.toggle("ativo", btn.dataset.filtro === tipo);
       });
       renderizarCategorias();
@@ -823,27 +1001,7 @@
       document.getElementById("tituloNota").textContent = `NOTA GERAL — ${estado.mesAno}`;
       document.getElementById("tituloCategorias").textContent = `LANÇAMENTO POR CATEGORIA — ${estado.mesAno}`;
 
-      const tbody = document.getElementById("corpoNota");
-      tbody.innerHTML = "";
-
-      if (estado.despesas.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="empty">Nenhuma conta registrada neste mês.</td></tr>`;
-      } else {
-        estado.despesas.forEach((item, idx) => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td class="num">${formatarNumeroOrdem(idx)}</td>
-            <td>${escaparHTML(item.descricao)}</td>
-            <td class="val">${formatarBRL(item.valor)}</td>
-            <td class="acoes">
-              <button type="button" class="btn-edit" onclick="corrigirDespesa(${idx})">Corrigir</button>
-              <button type="button" class="btn-danger" onclick="excluirDespesa(${idx})">Excluir</button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-      }
-
+      renderizarContas();
       renderizarCategorias();
       renderizarHistorico();
       salvarEstadoLocal();
@@ -895,7 +1053,7 @@
           ? ciclo.despesas
               .map(
                 (d, i) =>
-                  `<div>${formatarNumeroOrdem(i)} | ${escaparHTML(d.descricao)} | <strong>${formatarBRL(d.valor)}</strong></div>`
+                  `<div>${formatarNumeroOrdem(i)} | <strong>${escaparHTML(formatarVencimentoTexto(d.vencimento))}</strong> | ${escaparHTML(d.descricao)} | <strong>${formatarBRL(d.valor)}</strong></div>`
               )
               .join("")
           : `<div style="color: var(--muted);">Sem lançamentos.</div>`;
@@ -939,41 +1097,48 @@
         .replace(/"/g, "&quot;");
     }
 
-    document.getElementById("formDespesa").addEventListener("submit", (e) => {
+    document.getElementById("formDespesa").addEventListener("submit", async (e) => {
       e.preventDefault();
       const descInput = document.getElementById("descricao");
+      const vencInput = document.getElementById("vencimento");
       const valInput = document.getElementById("valor");
 
       const descricao = descInput.value.trim();
+      const vencimento = formatarVencimentoTexto(vencInput.value);
       const valor = parseValorBRL(valInput.value);
 
-      if (!descricao || isNaN(valor) || valor < 0) {
-        alert("Informe uma descrição válida e um valor em Reais (ex: 120,50).");
+      if (!descricao || !vencInput.value.trim() || isNaN(valor) || valor < 0) {
+        alert("Informe descrição, data (ex: 21 ou 21/11) e valor em Reais (ex: 134,15).");
         return;
       }
 
       const duplicada = estado.despesas.some(
-        (d) => d.descricao.toLowerCase() === descricao.toLowerCase() && Number(d.valor) === Number(valor)
+        (d) =>
+          d.descricao.toLowerCase() === descricao.toLowerCase() &&
+          formatarVencimentoTexto(d.vencimento) === vencimento &&
+          Number(d.valor) === Number(valor)
       );
 
       if (duplicada) {
         const confirmar = confirm(
-          `Já existe uma conta "${descricao}" no valor de ${formatarBRL(valor)} neste mês. É uma duplicidade? Deseja lançar mesmo assim?`
+          `Já existe uma conta "${descricao}" (Data: ${vencimento}) no valor de ${formatarBRL(valor)} neste mês. É uma duplicidade? Deseja lançar mesmo assim?`
         );
         if (!confirmar) return;
       }
 
-      estado.despesas.push({ descricao, valor });
+      estado.despesas.push({ descricao, vencimento, valor });
       document.getElementById("resumoFinanceiro").classList.remove("visivel");
 
       descInput.value = "";
+      vencInput.value = "";
       valInput.value = "";
       descInput.focus();
 
       renderizar();
+      await salvarNoSupabase(null, false);
     });
 
-    document.getElementById("formCategoria").addEventListener("submit", (e) => {
+    document.getElementById("formCategoria").addEventListener("submit", async (e) => {
       e.preventDefault();
       const tipoSelect = document.getElementById("catTipo");
       const descInput = document.getElementById("catDescricao");
@@ -996,11 +1161,15 @@
       descInput.focus();
 
       renderizar();
+      await salvarNoSupabase(null, false);
     });
 
-    function corrigirDespesa(idx) {
+    async function corrigirDespesa(idx) {
       const atual = estado.despesas[idx];
       if (!atual) return;
+
+      const novoVencTexto = prompt("Nova data (ex: 21 ou 21/11):", formatarVencimentoTexto(atual.vencimento));
+      if (novoVencTexto === null) return;
 
       const novaDesc = prompt("Nova descrição:", atual.descricao);
       if (novaDesc === null) return;
@@ -1009,29 +1178,37 @@
       if (novoValTexto === null) return;
 
       const novoVal = parseValorBRL(novoValTexto);
-      if (!novaDesc.trim() || isNaN(novoVal) || novoVal < 0) {
+      if (!novaDesc.trim() || !novoVencTexto.trim() || isNaN(novoVal) || novoVal < 0) {
         alert("Dados inválidos. Nenhuma alteração foi feita.");
         return;
       }
 
-      estado.despesas[idx] = { descricao: novaDesc.trim(), valor: novoVal };
+      estado.despesas[idx] = {
+        descricao: novaDesc.trim(),
+        vencimento: formatarVencimentoTexto(novoVencTexto),
+        valor: novoVal
+      };
       document.getElementById("resumoFinanceiro").classList.remove("visivel");
       renderizar();
+      await salvarNoSupabase(null, false);
     }
 
-    function excluirDespesa(idx) {
+    async function excluirDespesa(idx) {
       const item = estado.despesas[idx];
       if (!item) return;
 
-      const ok = confirm(`Deseja excluir o lançamento ${formatarNumeroOrdem(idx)} — "${item.descricao}" (${formatarBRL(item.valor)})?`);
+      const ok = confirm(
+        `Deseja excluir o lançamento ${formatarNumeroOrdem(idx)} — Data: ${formatarVencimentoTexto(item.vencimento)} | "${item.descricao}" (${formatarBRL(item.valor)})?`
+      );
       if (!ok) return;
 
       estado.despesas.splice(idx, 1);
       document.getElementById("resumoFinanceiro").classList.remove("visivel");
       renderizar();
+      await salvarNoSupabase(null, false);
     }
 
-    function corrigirCategoria(realIdx) {
+    async function corrigirCategoria(realIdx) {
       const atual = estado.categorias[realIdx];
       if (!atual) return;
 
@@ -1060,9 +1237,10 @@
       estado.categorias[realIdx] = { categoria: catAjustada, descricao: novaDesc.trim(), valor: novoVal };
       document.getElementById("resumoCategorias").classList.remove("visivel");
       renderizar();
+      await salvarNoSupabase(null, false);
     }
 
-    function excluirCategoria(realIdx) {
+    async function excluirCategoria(realIdx) {
       const item = estado.categorias[realIdx];
       if (!item) return;
 
@@ -1073,6 +1251,7 @@
       estado.categorias.splice(realIdx, 1);
       document.getElementById("resumoCategorias").classList.remove("visivel");
       renderizar();
+      await salvarNoSupabase(null, false);
     }
 
     function fecharContas() {
@@ -1150,7 +1329,7 @@
     async function fecharTudo() {
       fecharContas();
       fecharCategorias();
-      await salvarNoSupabase(null);
+      await salvarNoSupabase(null, true);
     }
 
     function novoMes() {
@@ -1218,12 +1397,13 @@
       estado.mesAno = proximoMesPendente;
       estado.despesas = [];
       estado.categorias = [];
+      filtroDiaAtual = "Todos";
       document.getElementById("resumoFinanceiro").classList.remove("visivel");
       document.getElementById("resumoCategorias").classList.remove("visivel");
 
       fecharModalNovoMes();
       renderizar();
-      await salvarNoSupabase(cicloEncerrado);
+      await salvarNoSupabase(cicloEncerrado, true);
     }
 
     document.getElementById("modalInputMes").addEventListener("keydown", (e) => {
@@ -1248,6 +1428,60 @@
         0
       );
       return totalCentavos / 100;
+    }
+
+    function criarPlanilhaContasModelo(itens) {
+      const linhas = [
+        ["CONTAS A PAGAR", null, null, null],
+        ["Nº", "DATA", "DESCRIÇÃO", "VALOR"]
+      ];
+
+      const inicioDados = 3;
+      itens.forEach((item, idx) => {
+        linhas.push([
+          idx + 1,
+          formatarVencimentoTexto(item.vencimento),
+          item.descricao,
+          Number(item.valor) || 0
+        ]);
+      });
+
+      const ultimaLinhaDados = inicioDados + itens.length - 1;
+      const linhaTotal = itens.length > 0 ? ultimaLinhaDados + 1 : inicioDados;
+      const totalGeral = somarItensCentavos(itens);
+      linhas.push([null, null, "TOTAL", totalGeral]);
+
+      const ws = XLSX.utils.aoa_to_sheet(linhas);
+      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
+      ws["!cols"] = [{ wch: 7 }, { wch: 15 }, { wch: 24 }, { wch: 15 }];
+
+      const estiloCentralizadoPadrao = { alignment: { horizontal: "center", vertical: "center" } };
+      const estiloDestaque = {
+        font: { name: "Times New Roman", sz: 10, bold: true },
+        alignment: { horizontal: "center", vertical: "center" }
+      };
+
+      const colunas = ["A", "B", "C", "D"];
+      for (let r = 1; r <= linhaTotal; r++) {
+        colunas.forEach((col) => {
+          const ref = `${col}${r}`;
+          if (!ws[ref]) ws[ref] = { t: "s", v: "" };
+          ws[ref].s = { ...(ws[ref].s || {}), ...estiloCentralizadoPadrao };
+        });
+      }
+
+      for (let r = inicioDados; r <= linhaTotal; r++) {
+        const cellRef = `D${r}`;
+        if (ws[cellRef]) {
+          ws[cellRef].z = '"R$"\\ #,##0.00;-"R$"\\ #,##0.00;"R$"\\ 0.00';
+        }
+      }
+
+      ["A1", "A2", "B2", "C2", "D2", `C${linhaTotal}`, `D${linhaTotal}`].forEach((ref) => {
+        if (ws[ref]) ws[ref].s = estiloDestaque;
+      });
+
+      return ws;
     }
 
     function criarPlanilhaNoModelo(itens, incluirResumoSaldo = false) {
@@ -1344,6 +1578,7 @@
 
     renderizar();
     sincronizarComSupabase(false);
+    iniciarSincronizacaoTempoReal();
   </script>
 </body>
 </html>
