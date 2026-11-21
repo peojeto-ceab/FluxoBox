@@ -180,8 +180,15 @@
       color: #e2e8f0;
     }
 
-    table {
+    .tabela-scroll {
       width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .tabela-scroll table {
+      width: 100%;
+      min-width: 520px;
       border-collapse: collapse;
       font-size: 0.92rem;
     }
@@ -199,9 +206,32 @@
       text-transform: uppercase;
     }
 
+    th.acoes-col, td.acoes {
+      text-align: right;
+      white-space: nowrap;
+    }
+
     td.num { width: 65px; font-weight: 700; color: var(--muted); }
     td.val { font-weight: 700; white-space: nowrap; }
-    td.acoes { text-align: right; white-space: nowrap; }
+
+    @media (max-width: 600px) {
+      .tabela-scroll table {
+        min-width: 480px;
+      }
+
+      .tabela-scroll th,
+      .tabela-scroll td {
+        padding: 8px 6px;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      .tabela-scroll .btn-edit,
+      .tabela-scroll .btn-danger {
+        padding: 5px 8px;
+        font-size: 11px;
+      }
+    }
 
     .saldo-positivo { color: #34d399; }
     .saldo-negativo { color: #f87171; }
@@ -362,17 +392,19 @@
 
       <div id="tituloNota" class="nota-header">NOTA GERAL — NOVEMBRO/2026</div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Nº</th>
-            <th>Descrição</th>
-            <th>Valor</th>
-            <th style="text-align: right;">Ações</th>
-          </tr>
-        </thead>
-        <tbody id="corpoNota"></tbody>
-      </table>
+      <div class="tabela-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Nº</th>
+              <th>Descrição</th>
+              <th>Valor</th>
+              <th class="acoes-col">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="corpoNota"></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- 2. LANÇAMENTO POR CATEGORIA -->
@@ -403,18 +435,20 @@
         <button type="button" class="filtro-btn" data-filtro="Casa" onclick="definirFiltro('Casa')">Casa</button>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Nº</th>
-            <th>Categoria</th>
-            <th>Descrição</th>
-            <th>Valor</th>
-            <th style="text-align: right;">Ações</th>
-          </tr>
-        </thead>
-        <tbody id="corpoCategorias"></tbody>
-      </table>
+      <div class="tabela-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Nº</th>
+              <th>Categoria</th>
+              <th>Descrição</th>
+              <th>Valor</th>
+              <th class="acoes-col">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="corpoCategorias"></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- FECHAMENTO E ENCERRAMENTO FINAL DO MÊS -->
