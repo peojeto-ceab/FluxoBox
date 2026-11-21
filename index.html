@@ -90,9 +90,33 @@
 
     .form-categorias {
       display: grid;
-      grid-template-columns: 170px 1fr 170px auto;
+      grid-template-columns: 185px 1fr 165px auto;
       gap: 10px;
       margin-bottom: 14px;
+      align-items: stretch;
+    }
+
+    .cat-select-wrap {
+      display: flex;
+      gap: 6px;
+      align-items: stretch;
+    }
+
+    .btn-nova-cat {
+      background: rgba(16, 185, 129, 0.14);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      padding: 0 12px;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-nova-cat:hover {
+      background: rgba(16, 185, 129, 0.24);
+      border-color: var(--accent);
     }
 
     @media (max-width: 720px) {
@@ -419,11 +443,14 @@
       <div class="card-title">2. Lançamento por Categoria</div>
 
       <form id="formCategoria" class="form-categorias">
-        <select id="catTipo" required>
-          <option value="Frete">Frete</option>
-          <option value="Vendas">Vendas</option>
-          <option value="Casa">Casa</option>
-        </select>
+        <div class="cat-select-wrap">
+          <select id="catTipo" required aria-label="Selecionar categoria">
+            <option value="Frete">Frete</option>
+            <option value="Vendas">Vendas</option>
+            <option value="Casa">Casa</option>
+          </select>
+          <button type="button" class="btn-nova-cat" onclick="abrirModalCategoria()" title="Adicionar nova categoria">+ Categoria</button>
+        </div>
         <input type="text" id="catDescricao" placeholder="Descrição (ex: Entrega, Venda, Casa)" required />
         <input type="text" id="catValor" placeholder="Valor em R$ (ex: 50,00)" required />
         <button type="submit" class="btn-add">Adicionar</button>
@@ -435,12 +462,7 @@
 
       <div id="tituloCategorias" class="nota-header">LANÇAMENTO POR CATEGORIA — NOVEMBRO/2026</div>
 
-      <div class="filtros" id="barraFiltros">
-        <button type="button" class="filtro-btn ativo" data-filtro="Todas" onclick="definirFiltro('Todas')">Todas</button>
-        <button type="button" class="filtro-btn" data-filtro="Frete" onclick="definirFiltro('Frete')">Frete</button>
-        <button type="button" class="filtro-btn" data-filtro="Vendas" onclick="definirFiltro('Vendas')">Vendas</button>
-        <button type="button" class="filtro-btn" data-filtro="Casa" onclick="definirFiltro('Casa')">Casa</button>
-      </div>
+      <div class="filtros" id="barraFiltros"></div>
 
       <div class="tabela-scroll">
         <table>
@@ -512,6 +534,19 @@
     </section>
   </div>
 
+  <!-- MODAL NOVA CATEGORIA -->
+  <div id="modalCategoria" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalCatTitulo">
+    <div class="modal-box">
+      <div id="modalCatTitulo" class="modal-titulo">Nova Categoria</div>
+      <p class="modal-texto">Digite o nome da categoria para adicionar na lista (ex: Água Mineral, Combustível):</p>
+      <input type="text" id="modalInputCategoria" class="modal-input" placeholder="Ex: Combustível" maxlength="30" />
+      <div class="modal-acoes">
+        <button type="button" class="btn-cancel" onclick="fecharModalCategoria()">Cancelar</button>
+        <button type="button" class="btn-add" onclick="confirmarModalCategoria()">Salvar Categoria</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL CENTRALIZADO ESTILO DO SITE -->
   <div id="modalNovoMes" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
     <div class="modal-box">
@@ -532,7 +567,7 @@
     const BUCKET_EXCEL = "planilhas";
     const STORAGE_KEY = "silas_contas_a_pagar_v1";
 
-    const CATEGORIAS = ["Frete", "Vendas", "Casa"];
+    const CATEGORIAS_PADRAO = ["Frete", "Vendas", "Casa"];
     const CATEGORIAS_ENTRADA = ["Frete", "Vendas"];
     const CATEGORIAS_SAIDA_CASA = ["Casa", "Mercado", "Farmácia"];
 
@@ -549,6 +584,39 @@
         : null;
 
     let estado = carregarEstadoLocal();
+
+    function formatarNomeCategoria(nome) {
+      const limpo = String(nome || "").trim().replace(/\s+/g, " ");
+      if (!limpo) return "";
+      const padrao = CATEGORIAS_PADRAO.find((c) => c.toLowerCase() === limpo.toLowerCase());
+      if (padrao) return padrao;
+      if (CATEGORIAS_SAIDA_CASA.some((c) => c.toLowerCase() === limpo.toLowerCase())) return "Casa";
+      return limpo.charAt(0).toUpperCase() + limpo.slice(1);
+    }
+
+    function normalizarNomeCategoria(cat) {
+      return formatarNomeCategoria(cat) || "Frete";
+    }
+
+    function obterListaCategorias(raw) {
+      const base = [...CATEGORIAS_PADRAO];
+      const extras = Array.isArray(raw && raw.categoriasDisponiveis)
+        ? raw.categoriasDisponiveis
+        : Array.isArray(raw && raw.categorias_disponiveis)
+          ? raw.categorias_disponiveis
+          : [];
+
+      const itensExistentes = Array.isArray(raw && raw.categorias) ? raw.categorias : [];
+
+      [...extras, ...itensExistentes.map((c) => c && c.categoria)].forEach((item) => {
+        const fmt = formatarNomeCategoria(item);
+        if (fmt && !base.some((b) => b.toLowerCase() === fmt.toLowerCase())) {
+          base.push(fmt);
+        }
+      });
+
+      return base;
+    }
 
     function formatarVencimentoTexto(venc) {
       const limpo = String(venc || "").trim();
@@ -579,11 +647,6 @@
         : [];
     }
 
-    function normalizarNomeCategoria(cat) {
-      if (CATEGORIAS_SAIDA_CASA.includes(cat)) return "Casa";
-      return cat;
-    }
-
     function normalizarListaCategorias(lista) {
       return Array.isArray(lista)
         ? lista.map((c) => ({ ...c, categoria: normalizarNomeCategoria(c.categoria) }))
@@ -604,6 +667,7 @@
     function normalizarEstadoCompleto(raw) {
       return {
         mesAno: (raw && raw.mesAno) || (raw && raw.mes_ano) || "NOVEMBRO/2026",
+        categoriasDisponiveis: obterListaCategorias(raw),
         despesas: normalizarDespesas(raw && raw.despesas),
         categorias: normalizarListaCategorias(raw && raw.categorias),
         historico: normalizarHistorico(raw && raw.historico)
@@ -790,7 +854,13 @@
       }
 
       if (data) {
-        const novoEstado = normalizarEstadoCompleto(data);
+        const novoEstado = normalizarEstadoCompleto({
+          ...data,
+          categoriasDisponiveis: obterListaCategorias({
+            categoriasDisponiveis: estado.categoriasDisponiveis,
+            categorias: data.categorias
+          })
+        });
         const mudou = JSON.stringify(novoEstado) !== JSON.stringify(estado);
         estado = novoEstado;
         salvarEstadoLocal();
@@ -826,7 +896,13 @@
               if (salvandoNaNuvem) return;
               const novoRegistro = payload && payload.new;
               if (!novoRegistro) return;
-              const novoEstado = normalizarEstadoCompleto(novoRegistro);
+              const novoEstado = normalizarEstadoCompleto({
+                ...novoRegistro,
+                categoriasDisponiveis: obterListaCategorias({
+                  categoriasDisponiveis: estado.categoriasDisponiveis,
+                  categorias: novoRegistro.categorias
+                })
+              });
               if (JSON.stringify(novoEstado) !== JSON.stringify(estado)) {
                 estado = novoEstado;
                 salvarEstadoLocal();
@@ -900,7 +976,7 @@
       const valorAbs = Math.abs(Number(item.valor) || 0);
       if (isCategoriaEntrada(item.categoria)) return valorAbs;
       if (isCategoriaSaidaCasa(item.categoria)) return -valorAbs;
-      return Number(item.valor) || 0;
+      return valorAbs;
     }
 
     function formatarValorTabelaCategoria(item) {
@@ -911,6 +987,94 @@
     function formatarNumeroOrdem(i) {
       return String(i + 1).padStart(2, "0");
     }
+
+    function renderizarControlesCategoria() {
+      const listaCats = obterListaCategorias(estado);
+      estado.categoriasDisponiveis = listaCats;
+
+      const select = document.getElementById("catTipo");
+      if (select) {
+        const valorAnterior = formatarNomeCategoria(select.value);
+        select.innerHTML = listaCats
+          .map((cat) => `<option value="${escaparHTML(cat)}">${escaparHTML(cat)}</option>`)
+          .join("");
+        if (listaCats.includes(valorAnterior)) {
+          select.value = valorAnterior;
+        }
+      }
+
+      const barra = document.getElementById("barraFiltros");
+      if (barra) {
+        if (filtroAtual !== "Todas" && !listaCats.includes(filtroAtual)) {
+          filtroAtual = "Todas";
+        }
+        const opcoesFiltro = ["Todas", ...listaCats];
+        barra.innerHTML = opcoesFiltro
+          .map((tipo) => {
+            const ativo = filtroAtual === tipo ? " ativo" : "";
+            return `<button type="button" class="filtro-btn${ativo}" data-filtro="${escaparHTML(tipo)}" onclick="definirFiltro('${escaparHTML(tipo)}')">${escaparHTML(tipo)}</button>`;
+          })
+          .join("");
+      }
+    }
+
+    function abrirModalCategoria() {
+      const backdrop = document.getElementById("modalCategoria");
+      const input = document.getElementById("modalInputCategoria");
+      input.value = "";
+      backdrop.classList.add("aberto");
+      setTimeout(() => {
+        input.focus();
+      }, 20);
+    }
+
+    function fecharModalCategoria() {
+      document.getElementById("modalCategoria").classList.remove("aberto");
+    }
+
+    function confirmarModalCategoria() {
+      const input = document.getElementById("modalInputCategoria");
+      const nomeFormatado = formatarNomeCategoria(input.value);
+      if (!nomeFormatado) {
+        input.focus();
+        return;
+      }
+
+      const listaCats = obterListaCategorias(estado);
+      const jaExiste = listaCats.find((c) => c.toLowerCase() === nomeFormatado.toLowerCase());
+      const categoriaFinal = jaExiste || nomeFormatado;
+
+      if (!jaExiste) {
+        listaCats.push(categoriaFinal);
+        estado.categoriasDisponiveis = listaCats;
+      }
+
+      fecharModalCategoria();
+      renderizarControlesCategoria();
+      salvarEstadoLocal();
+
+      const select = document.getElementById("catTipo");
+      if (select) {
+        select.value = categoriaFinal;
+      }
+      document.getElementById("catDescricao").focus();
+    }
+
+    document.getElementById("modalInputCategoria").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmarModalCategoria();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        fecharModalCategoria();
+      }
+    });
+
+    document.getElementById("modalCategoria").addEventListener("click", (e) => {
+      if (e.target.id === "modalCategoria") {
+        fecharModalCategoria();
+      }
+    });
 
     function definirFiltroDia(dia) {
       filtroDiaAtual = dia;
@@ -1001,6 +1165,7 @@
       document.getElementById("tituloNota").textContent = `NOTA GERAL — ${estado.mesAno}`;
       document.getElementById("tituloCategorias").textContent = `LANÇAMENTO POR CATEGORIA — ${estado.mesAno}`;
 
+      renderizarControlesCategoria();
       renderizarContas();
       renderizarCategorias();
       renderizarHistorico();
@@ -1212,14 +1377,20 @@
       const atual = estado.categorias[realIdx];
       if (!atual) return;
 
+      const listaCats = obterListaCategorias(estado);
       const catAtualNorm = normalizarNomeCategoria(atual.categoria);
-      const novaCat = prompt("Categoria (Frete, Vendas, Casa):", catAtualNorm);
+      const novaCat = prompt(`Categoria (${listaCats.join(", ")}):`, catAtualNorm);
       if (novaCat === null) return;
 
-      const catAjustada = CATEGORIAS.find((c) => c.toLowerCase() === novaCat.trim().toLowerCase());
-      if (!catAjustada) {
-        alert("Categoria inválida. Use: Frete, Vendas ou Casa.");
+      const formatada = formatarNomeCategoria(novaCat);
+      if (!formatada) {
+        alert("Categoria inválida.");
         return;
+      }
+
+      if (!listaCats.includes(formatada)) {
+        listaCats.push(formatada);
+        estado.categoriasDisponiveis = listaCats;
       }
 
       const novaDesc = prompt("Nova descrição:", atual.descricao);
@@ -1234,7 +1405,7 @@
         return;
       }
 
-      estado.categorias[realIdx] = { categoria: catAjustada, descricao: novaDesc.trim(), valor: novoVal };
+      estado.categorias[realIdx] = { categoria: formatada, descricao: novaDesc.trim(), valor: novoVal };
       document.getElementById("resumoCategorias").classList.remove("visivel");
       renderizar();
       await salvarNoSupabase(null, false);
@@ -1266,20 +1437,29 @@
     }
 
     function calcularResumoCategoriasCentavos(itens) {
-      const totaisPorCatCentavos = { "Frete": 0, "Vendas": 0, "Casa": 0 };
+      const listaCats = obterListaCategorias({ ...estado, categorias: itens });
+      const totaisPorCatCentavos = {};
+      listaCats.forEach((cat) => {
+        totaisPorCatCentavos[cat] = 0;
+      });
+
       let entradasCentavos = 0;
       let saidasCentavos = 0;
 
       itens.forEach((item) => {
         const catNorm = normalizarNomeCategoria(item.categoria);
         const absCentavos = Math.round(Math.abs(Number(item.valor) || 0) * 100);
-        if (totaisPorCatCentavos[catNorm] !== undefined) {
-          totaisPorCatCentavos[catNorm] += absCentavos;
+        if (totaisPorCatCentavos[catNorm] === undefined) {
+          totaisPorCatCentavos[catNorm] = 0;
         }
+        totaisPorCatCentavos[catNorm] += absCentavos;
+
         if (isCategoriaEntrada(catNorm)) {
           entradasCentavos += absCentavos;
         } else if (isCategoriaSaidaCasa(catNorm)) {
           saidasCentavos += absCentavos;
+        } else {
+          entradasCentavos += absCentavos;
         }
       });
 
@@ -1293,10 +1473,12 @@
 
     function fecharCategorias() {
       const resumo = calcularResumoCategoriasCentavos(estado.categorias);
+      const catsResumo = Object.keys(resumo.totaisPorCatCentavos);
 
-      document.getElementById("detalhesCategorias").innerHTML = CATEGORIAS.map((cat) => {
+      document.getElementById("detalhesCategorias").innerHTML = catsResumo.map((cat) => {
         const catCentavos = resumo.totaisPorCatCentavos[cat] || 0;
-        const signedReais = isCategoriaEntrada(cat) ? (catCentavos / 100) : -(catCentavos / 100);
+        const isSaida = isCategoriaSaidaCasa(cat);
+        const signedReais = isSaida ? -(catCentavos / 100) : (catCentavos / 100);
         const classeCor = signedReais < 0 ? "saldo-negativo" : "saldo-positivo";
         return `
           <div class="resumo-linha">
@@ -1398,6 +1580,7 @@
       estado.despesas = [];
       estado.categorias = [];
       filtroDiaAtual = "Todos";
+      filtroAtual = "Todas";
       document.getElementById("resumoFinanceiro").classList.remove("visivel");
       document.getElementById("resumoCategorias").classList.remove("visivel");
 
