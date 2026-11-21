@@ -383,7 +383,39 @@
       text-align: center;
       font-weight: 700;
       letter-spacing: 0.5px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
+    }
+
+    .sinal-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .btn-sinal {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 11px 12px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-sinal.ativo-pos {
+      background: rgba(16, 185, 129, 0.16);
+      border-color: var(--accent);
+      color: #34d399;
+    }
+
+    .btn-sinal.ativo-neg {
+      background: rgba(239, 68, 68, 0.16);
+      border-color: var(--danger);
+      color: #f87171;
     }
 
     .modal-acoes {
@@ -508,11 +540,11 @@
         <h3>RESUMO FINANCEIRO — POR CATEGORIA</h3>
         <div id="detalhesCategorias"></div>
         <div class="resumo-linha" style="margin-top: 8px;">
-          <span>Total Entradas (Frete + Vendas):</span>
+          <span>Total Entradas (+):</span>
           <strong id="resCatEntradas" class="saldo-positivo">R$ 0,00</strong>
         </div>
         <div class="resumo-linha">
-          <span>Total Saídas (Casa):</span>
+          <span>Total Saídas (-):</span>
           <strong id="resCatSaidas" class="saldo-negativo">-R$ 0,00</strong>
         </div>
         <div class="resumo-linha resumo-total">
@@ -538,8 +570,16 @@
   <div id="modalCategoria" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalCatTitulo">
     <div class="modal-box">
       <div id="modalCatTitulo" class="modal-titulo">Nova Categoria</div>
-      <p class="modal-texto">Digite o nome da categoria para adicionar na lista (ex: Água Mineral, Combustível):</p>
+      <p class="modal-texto">Digite o nome da categoria e escolha se ela é positiva ou negativa:</p>
       <input type="text" id="modalInputCategoria" class="modal-input" placeholder="Ex: Combustível" maxlength="30" />
+      <div class="sinal-selector" role="group" aria-label="Tipo da categoria">
+        <button type="button" id="btnSinalPositivo" class="btn-sinal ativo-pos" onclick="selecionarSinalCategoria(1)">
+          <span>+</span> Positivo (Verde)
+        </button>
+        <button type="button" id="btnSinalNegativo" class="btn-sinal" onclick="selecionarSinalCategoria(-1)">
+          <span>-</span> Negativo (Vermelho)
+        </button>
+      </div>
       <div class="modal-acoes">
         <button type="button" class="btn-cancel" onclick="fecharModalCategoria()">Cancelar</button>
         <button type="button" class="btn-add" onclick="confirmarModalCategoria()">Salvar Categoria</button>
@@ -573,6 +613,7 @@
 
     let filtroDiaAtual = "Todos";
     let filtroAtual = "Todas";
+    let sinalNovaCategoria = 1;
     let etapaModalNovoMes = "input";
     let proximoMesPendente = "";
     let salvandoNaNuvem = false;
@@ -598,6 +639,40 @@
       return formatarNomeCategoria(cat) || "Frete";
     }
 
+    function obterMapaSinaisCategorias(raw) {
+      const mapa = {
+        "Frete": 1,
+        "Vendas": 1,
+        "Casa": -1
+      };
+
+      const fontes = [
+        raw && raw.sinaisCategorias,
+        raw && raw.sinais_categorias
+      ];
+
+      fontes.forEach((obj) => {
+        if (obj && typeof obj === "object") {
+          Object.entries(obj).forEach(([chave, val]) => {
+            const fmt = formatarNomeCategoria(chave);
+            if (fmt) {
+              mapa[fmt] = Number(val) < 0 ? -1 : 1;
+            }
+          });
+        }
+      });
+
+      const itensExistentes = Array.isArray(raw && raw.categorias) ? raw.categorias : [];
+      itensExistentes.forEach((c) => {
+        const fmt = formatarNomeCategoria(c && c.categoria);
+        if (fmt && mapa[fmt] === undefined) {
+          mapa[fmt] = isCategoriaSaidaPadrao(fmt) ? -1 : 1;
+        }
+      });
+
+      return mapa;
+    }
+
     function obterListaCategorias(raw) {
       const base = [...CATEGORIAS_PADRAO];
       const extras = Array.isArray(raw && raw.categoriasDisponiveis)
@@ -606,9 +681,10 @@
           ? raw.categorias_disponiveis
           : [];
 
+      const mapaSinais = obterMapaSinaisCategorias(raw);
       const itensExistentes = Array.isArray(raw && raw.categorias) ? raw.categorias : [];
 
-      [...extras, ...itensExistentes.map((c) => c && c.categoria)].forEach((item) => {
+      [...extras, ...Object.keys(mapaSinais), ...itensExistentes.map((c) => c && c.categoria)].forEach((item) => {
         const fmt = formatarNomeCategoria(item);
         if (fmt && !base.some((b) => b.toLowerCase() === fmt.toLowerCase())) {
           base.push(fmt);
@@ -616,6 +692,13 @@
       });
 
       return base;
+    }
+
+    function isCategoriaSaidaPadrao(categoria) {
+      const fmt = normalizarNomeCategoria(categoria);
+      if (CATEGORIAS_SAIDA_CASA.includes(fmt)) return true;
+      const mapa = obterMapaSinaisCategorias(estado);
+      return mapa[fmt] === -1;
     }
 
     function formatarVencimentoTexto(venc) {
@@ -665,11 +748,13 @@
     }
 
     function normalizarEstadoCompleto(raw) {
+      const categoriasNorm = normalizarListaCategorias(raw && raw.categorias);
       return {
         mesAno: (raw && raw.mesAno) || (raw && raw.mes_ano) || "NOVEMBRO/2026",
-        categoriasDisponiveis: obterListaCategorias(raw),
+        categoriasDisponiveis: obterListaCategorias({ ...raw, categorias: categoriasNorm }),
+        sinaisCategorias: obterMapaSinaisCategorias({ ...raw, categorias: categoriasNorm }),
         despesas: normalizarDespesas(raw && raw.despesas),
-        categorias: normalizarListaCategorias(raw && raw.categorias),
+        categorias: categoriasNorm,
         historico: normalizarHistorico(raw && raw.historico)
       };
     }
@@ -859,6 +944,10 @@
           categoriasDisponiveis: obterListaCategorias({
             categoriasDisponiveis: estado.categoriasDisponiveis,
             categorias: data.categorias
+          }),
+          sinaisCategorias: obterMapaSinaisCategorias({
+            sinaisCategorias: estado.sinaisCategorias,
+            categorias: data.categorias
           })
         });
         const mudou = JSON.stringify(novoEstado) !== JSON.stringify(estado);
@@ -900,6 +989,10 @@
                 ...novoRegistro,
                 categoriasDisponiveis: obterListaCategorias({
                   categoriasDisponiveis: estado.categoriasDisponiveis,
+                  categorias: novoRegistro.categorias
+                }),
+                sinaisCategorias: obterMapaSinaisCategorias({
+                  sinaisCategorias: estado.sinaisCategorias,
                   categorias: novoRegistro.categorias
                 })
               });
@@ -965,16 +1058,17 @@
     }
 
     function isCategoriaEntrada(categoria) {
-      return CATEGORIAS_ENTRADA.includes(normalizarNomeCategoria(categoria));
+      const fmt = normalizarNomeCategoria(categoria);
+      if (CATEGORIAS_ENTRADA.includes(fmt)) return true;
+      return !isCategoriaSaidaPadrao(fmt);
     }
 
     function isCategoriaSaidaCasa(categoria) {
-      return CATEGORIAS_SAIDA_CASA.includes(categoria);
+      return isCategoriaSaidaPadrao(categoria);
     }
 
     function valorAssinadoCategoria(item) {
       const valorAbs = Math.abs(Number(item.valor) || 0);
-      if (isCategoriaEntrada(item.categoria)) return valorAbs;
       if (isCategoriaSaidaCasa(item.categoria)) return -valorAbs;
       return valorAbs;
     }
@@ -991,12 +1085,16 @@
     function renderizarControlesCategoria() {
       const listaCats = obterListaCategorias(estado);
       estado.categoriasDisponiveis = listaCats;
+      estado.sinaisCategorias = obterMapaSinaisCategorias(estado);
 
       const select = document.getElementById("catTipo");
       if (select) {
         const valorAnterior = formatarNomeCategoria(select.value);
         select.innerHTML = listaCats
-          .map((cat) => `<option value="${escaparHTML(cat)}">${escaparHTML(cat)}</option>`)
+          .map((cat) => {
+            const sinalLabel = isCategoriaSaidaCasa(cat) ? "-" : "+";
+            return `<option value="${escaparHTML(cat)}">${sinalLabel} ${escaparHTML(cat)}</option>`;
+          })
           .join("");
         if (listaCats.includes(valorAnterior)) {
           select.value = valorAnterior;
@@ -1018,9 +1116,25 @@
       }
     }
 
+    function atualizarBotoesSinalCategoria() {
+      const btnPos = document.getElementById("btnSinalPositivo");
+      const btnNeg = document.getElementById("btnSinalNegativo");
+      if (!btnPos || !btnNeg) return;
+
+      btnPos.classList.toggle("ativo-pos", sinalNovaCategoria === 1);
+      btnNeg.classList.toggle("ativo-neg", sinalNovaCategoria === -1);
+    }
+
+    function selecionarSinalCategoria(sinal) {
+      sinalNovaCategoria = sinal < 0 ? -1 : 1;
+      atualizarBotoesSinalCategoria();
+    }
+
     function abrirModalCategoria() {
       const backdrop = document.getElementById("modalCategoria");
       const input = document.getElementById("modalInputCategoria");
+      sinalNovaCategoria = 1;
+      atualizarBotoesSinalCategoria();
       input.value = "";
       backdrop.classList.add("aberto");
       setTimeout(() => {
@@ -1048,6 +1162,10 @@
         listaCats.push(categoriaFinal);
         estado.categoriasDisponiveis = listaCats;
       }
+
+      const mapaSinais = obterMapaSinaisCategorias(estado);
+      mapaSinais[categoriaFinal] = sinalNovaCategoria;
+      estado.sinaisCategorias = mapaSinais;
 
       fecharModalCategoria();
       renderizarControlesCategoria();
@@ -1393,6 +1511,12 @@
         estado.categoriasDisponiveis = listaCats;
       }
 
+      const mapaSinais = obterMapaSinaisCategorias(estado);
+      if (mapaSinais[formatada] === undefined) {
+        mapaSinais[formatada] = 1;
+        estado.sinaisCategorias = mapaSinais;
+      }
+
       const novaDesc = prompt("Nova descrição:", atual.descricao);
       if (novaDesc === null) return;
 
@@ -1454,9 +1578,7 @@
         }
         totaisPorCatCentavos[catNorm] += absCentavos;
 
-        if (isCategoriaEntrada(catNorm)) {
-          entradasCentavos += absCentavos;
-        } else if (isCategoriaSaidaCasa(catNorm)) {
+        if (isCategoriaSaidaCasa(catNorm)) {
           saidasCentavos += absCentavos;
         } else {
           entradasCentavos += absCentavos;
@@ -1480,9 +1602,10 @@
         const isSaida = isCategoriaSaidaCasa(cat);
         const signedReais = isSaida ? -(catCentavos / 100) : (catCentavos / 100);
         const classeCor = signedReais < 0 ? "saldo-negativo" : "saldo-positivo";
+        const sinalPrefixo = isSaida ? "(-)" : "(+)";
         return `
           <div class="resumo-linha">
-            <span>${escaparHTML(cat)}:</span>
+            <span>${escaparHTML(cat)} ${sinalPrefixo}:</span>
             <strong class="${classeCor}">${formatarSaldoSinalBRL(signedReais)}</strong>
           </div>
         `;
