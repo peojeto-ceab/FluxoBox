@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Controle Mensal de Contas a Pagar</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-2: #0b1220;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --border: #334155;
+      --accent: #10b981;
+      --accent-hover: #059669;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --blue: #3b82f6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px 16px 60px;
+      line-height: 1.5;
+    }
+
+    .container { max-width: 920px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 { font-size: 1.35rem; font-weight: 700; }
+    header p { color: var(--muted); font-size: 0.88rem; }
+
+    .badge-mes {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 180px auto;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .form-categorias {
+      display: grid;
+      grid-template-columns: 170px 1fr 170px auto;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    @media (max-width: 640px) {
+      .form-grid, .form-categorias { grid-template-columns: 1fr; }
+    }
+
+    input, select {
+      background: var(--card-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 12px;
+      font-size: 0.95rem;
+      outline: none;
+      width: 100%;
+    }
+
+    input:focus, select:focus { border-color: var(--accent); }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: 0.15s ease;
+      color: #fff;
+    }
+
+    button:active { transform: scale(0.98); }
+
+    .btn-add { background: var(--accent); }
+    .btn-add:hover { background: var(--accent-hover); }
+
+    .btn-blue { background: var(--blue); }
+    .btn-blue:hover { filter: brightness(1.08); }
+
+    .btn-warn { background: var(--warn); color: #0f172a; }
+    .btn-warn:hover { filter: brightness(1.05); }
+
+    .btn-cancel { background: #334155; color: var(--text); }
+    .btn-cancel:hover { background: #475569; }
+
+    .btn-danger { background: var(--danger); padding: 6px 10px; font-size: 0.8rem; }
+    .btn-edit { background: #475569; padding: 6px 10px; font-size: 0.8rem; margin-right: 6px; }
+
+    .actions-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .encerramento-box {
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+
+    .encerramento-titulo {
+      font-size: 0.9rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .encerramento-botoes {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .encerramento-botoes button {
+      min-width: 170px;
+      padding: 12px 18px;
+      font-size: 0.94rem;
+    }
+
+    .nota-header {
+      font-weight: 800;
+      font-size: 1rem;
+      margin-bottom: 10px;
+      color: #e2e8f0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+
+    th {
+      background: var(--card-2);
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+    }
+
+    td.num { width: 65px; font-weight: 700; color: var(--muted); }
+    td.val { font-weight: 700; white-space: nowrap; }
+    td.acoes { text-align: right; white-space: nowrap; }
+
+    .saldo-positivo { color: #34d399; }
+    .saldo-negativo { color: #f87171; }
+
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 24px 10px;
+      font-style: italic;
+    }
+
+    .resumo-box {
+      display: none;
+      background: var(--card-2);
+      border: 1px solid var(--accent);
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 14px;
+      text-align: left;
+    }
+
+    .resumo-box.visivel { display: block; }
+    .resumo-box h3 { font-size: 0.95rem; margin-bottom: 8px; color: #34d399; }
+    .resumo-linha { display: flex; justify-content: space-between; margin: 4px 0; font-size: 0.95rem; }
+    .resumo-total { font-size: 1.1rem; font-weight: 800; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px; }
+
+    .filtros {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .filtro-btn {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 12px;
+      font-size: 0.84rem;
+    }
+
+    .filtro-btn.ativo {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: var(--blue);
+      color: #fff;
+    }
+
+    .historico-item {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      background: var(--card-2);
+    }
+
+    .historico-topo {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .status-nuvem {
+      font-size: 0.84rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .link-excel {
+      display: inline-block;
+      margin-top: 6px;
+      color: #34d399;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-decoration: underline;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.72);
+      backdrop-filter: blur(3px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 9999;
+    }
+
+    .modal-backdrop.aberto {
+      display: flex;
+    }
+
+    .modal-box {
+      width: 100%;
+      max-width: 440px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 20px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+    }
+
+    .modal-titulo {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .modal-texto {
+      font-size: 0.92rem;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .modal-input {
+      text-align: center;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+
+    .modal-acoes {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Controle Mensal de Contas a Pagar</h1>
+        <p>Sincronizado na nuvem em qualquer dispositivo</p>
+      </div>
+      <div id="badgeMes" class="badge-mes">NOVEMBRO/2026</div>
+    </header>
+
+    <!-- 1. CONTAS A PAGAR -->
+    <section class="card">
+      <div class="card-title">1. Contas a Pagar</div>
+
+      <form id="formDespesa" class="form-grid">
+        <input type="text" id="descricao" placeholder="Descrição da conta (ex: Energia, Internet, Boleto)" required />
+        <input type="text" id="valor" placeholder="Valor em R$ (ex: 150,00)" required />
+        <button type="submit" class="btn-add">Adicionar</button>
+      </form>
+
+      <div class="actions-bar">
+        <button type="button" class="btn-add" onclick="gerarExcel()">Gerar Excel (.xlsx)</button>
+      </div>
+
+      <div id="tituloNota" class="nota-header">NOTA GERAL — NOVEMBRO/2026</div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Nº</th>
+            <th>Descrição</th>
+            <th>Valor</th>
+            <th style="text-align: right;">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="corpoNota"></tbody>
+      </table>
+    </section>
+
+    <!-- 2. LANÇAMENTO POR CATEGORIA -->
+    <section class="card">
+      <div class="card-title">2. Lançamento por Categoria</div>
+
+      <form id="formCategoria" class="form-categorias">
+        <select id="catTipo" required>
+          <option value="Frete">Frete</option>
+          <option value="Vendas">Vendas</option>
+          <option value="Casa">Casa</option>
+        </select>
+        <input type="text" id="catDescricao" placeholder="Descrição (ex: Entrega, Venda, Casa)" required />
+        <input type="text" id="catValor" placeholder="Valor em R$ (ex: 50,00)" required />
+        <button type="submit" class="btn-add">Adicionar</button>
+      </form>
+
+      <div class="actions-bar">
+        <button type="button" class="btn-add" onclick="gerarExcelCategorias()">Gerar Excel (.xlsx)</button>
+      </div>
+
+      <div id="tituloCategorias" class="nota-header">LANÇAMENTO POR CATEGORIA — NOVEMBRO/2026</div>
+
+      <div class="filtros" id="barraFiltros">
+        <button type="button" class="filtro-btn ativo" data-filtro="Todas" onclick="definirFiltro('Todas')">Todas</button>
+        <button type="button" class="filtro-btn" data-filtro="Frete" onclick="definirFiltro('Frete')">Frete</button>
+        <button type="button" class="filtro-btn" data-filtro="Vendas" onclick="definirFiltro('Vendas')">Vendas</button>
+        <button type="button" class="filtro-btn" data-filtro="Casa" onclick="definirFiltro('Casa')">Casa</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Nº</th>
+            <th>Categoria</th>
+            <th>Descrição</th>
+            <th>Valor</th>
+            <th style="text-align: right;">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="corpoCategorias"></tbody>
+      </table>
+    </section>
+
+    <!-- FECHAMENTO E ENCERRAMENTO FINAL DO MÊS -->
+    <section class="encerramento-box">
+      <div class="encerramento-titulo">Fechamento e Encerramento do Mês</div>
+      <div class="encerramento-botoes">
+        <button type="button" class="btn-blue" onclick="fecharTudo()">Fechar Contas</button>
+        <button type="button" id="btnNovoMes" class="btn-warn" onclick="novoMes()">Novo Mês</button>
+      </div>
+
+      <div id="resumoFinanceiro" class="resumo-box">
+        <h3>RESUMO FINANCEIRO — CONTAS A PAGAR</h3>
+        <div class="resumo-linha">
+          <span>Quantidade de contas:</span>
+          <strong id="resQtd">0</strong>
+        </div>
+        <div class="resumo-linha">
+          <span>Subtotal:</span>
+          <strong id="resSubtotal">R$ 0,00</strong>
+        </div>
+        <div class="resumo-linha resumo-total">
+          <span>TOTAL GERAL:</span>
+          <strong id="resTotal">R$ 0,00</strong>
+        </div>
+      </div>
+
+      <div id="resumoCategorias" class="resumo-box">
+        <h3>RESUMO FINANCEIRO — POR CATEGORIA</h3>
+        <div id="detalhesCategorias"></div>
+        <div class="resumo-linha" style="margin-top: 8px;">
+          <span>Total Entradas (Frete + Vendas):</span>
+          <strong id="resCatEntradas" class="saldo-positivo">R$ 0,00</strong>
+        </div>
+        <div class="resumo-linha">
+          <span>Total Saídas (Casa):</span>
+          <strong id="resCatSaidas" class="saldo-negativo">-R$ 0,00</strong>
+        </div>
+        <div class="resumo-linha resumo-total">
+          <span>TOTAL GERAL:</span>
+          <strong id="resCatTotal">R$ 0,00</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTÓRICO DE MESES ANTERIORES -->
+    <section class="card">
+      <div class="card-title">Histórico de Meses Encerrados</div>
+      <div id="statusNuvem" class="status-nuvem">
+        Conectando na nuvem...
+      </div>
+      <div id="listaHistorico">
+        <p class="empty">Nenhum mês encerrado ainda.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- MODAL CENTRALIZADO ESTILO DO SITE -->
+  <div id="modalNovoMes" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+    <div class="modal-box">
+      <div id="modalTitulo" class="modal-titulo">Novo Mês</div>
+      <p id="modalTexto" class="modal-texto">Informe o novo MÊS/ANO (ex: DEZEMBRO/2026):</p>
+      <input type="text" id="modalInputMes" class="modal-input" placeholder="Ex: DEZEMBRO/2026" />
+      <div class="modal-acoes">
+        <button type="button" class="btn-cancel" onclick="fecharModalNovoMes()">Cancelar</button>
+        <button type="button" id="modalBtnConfirmar" class="btn-warn" onclick="confirmarModalNovoMes()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://veouuoiulplfhnduavfe.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_apfxIdxxrEUk1jNnKPhkrg_UagL2W-k";
+    const REGISTRO_ID = "principal";
+    const BUCKET_EXCEL = "planilhas";
+    const STORAGE_KEY = "silas_contas_a_pagar_v1";
+
+    const CATEGORIAS = ["Frete", "Vendas", "Casa"];
+    const CATEGORIAS_ENTRADA = ["Frete", "Vendas"];
+    const CATEGORIAS_SAIDA_CASA = ["Casa", "Mercado", "Farmácia"];
+
+    let filtroAtual = "Todas";
+    let etapaModalNovoMes = "input";
+    let proximoMesPendente = "";
+
+    const supabaseClient =
+      typeof window.supabase !== "undefined"
+        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+        : null;
+
+    let estado = carregarEstadoLocal();
+
+    function normalizarNomeCategoria(cat) {
+      if (CATEGORIAS_SAIDA_CASA.includes(cat)) return "Casa";
+      return cat;
+    }
+
+    function normalizarListaCategorias(lista) {
+      return Array.isArray(lista)
+        ? lista.map((c) => ({ ...c, categoria: normalizarNomeCategoria(c.categoria) }))
+        : [];
+    }
+
+    function normalizarHistorico(lista) {
+      if (!Array.isArray(lista)) return [];
+      return lista.map((ciclo) => ({
+        mesAno: ciclo.mesAno || "MÊS/ANO",
+        despesas: Array.isArray(ciclo.despesas) ? ciclo.despesas : [],
+        categorias: normalizarListaCategorias(ciclo.categorias),
+        excelContasUrl: ciclo.excelContasUrl || "",
+        excelCategoriasUrl: ciclo.excelCategoriasUrl || ""
+      }));
+    }
+
+    function normalizarEstadoCompleto(raw) {
+      return {
+        mesAno: (raw && raw.mesAno) || (raw && raw.mes_ano) || "NOVEMBRO/2026",
+        despesas: Array.isArray(raw && raw.despesas) ? raw.despesas : [],
+        categorias: normalizarListaCategorias(raw && raw.categorias),
+        historico: normalizarHistorico(raw && raw.historico)
+      };
+    }
+
+    function mesAtualPadrao() {
+      const meses = [
+        "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+        "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"
+      ];
+      const agora = new Date();
+      return `${meses[agora.getMonth()]}/${agora.getFullYear()}`;
+    }
+
+    function carregarEstadoLocal() {
+      const salvo = localStorage.getItem(STORAGE_KEY);
+      if (salvo) {
+        try {
+          return normalizarEstadoCompleto(JSON.parse(salvo));
+        } catch (e) {}
+      }
+      return normalizarEstadoCompleto({});
+    }
+
+    function salvarEstadoLocal() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
+    }
+
+    function atualizarStatusNuvem(msg) {
+      const el = document.getElementById("statusNuvem");
+      if (el) el.innerHTML = msg;
+    }
+
+    function montarWorkbookContas(mesRef, despesasRef) {
+      const itensContas = (despesasRef || []).map((d) => ({
+        categoria: "Contas a Pagar",
+        descricao: d.descricao,
+        valor: d.valor
+      }));
+      const ws = criarPlanilhaNoModelo(itensContas, false);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Planilha1");
+      const nomeArquivo = `Contas_a_Pagar_${String(mesRef || "").replace(/[^a-zA-Z0-9_-]/g, "_")}.xlsx`;
+      return { wb, nomeArquivo };
+    }
+
+    function montarWorkbookCategorias(mesRef, categoriasRef) {
+      const ws = criarPlanilhaNoModelo(categoriasRef || [], true);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Planilha1");
+      const nomeArquivo = `Lancamento_Categoria_${String(mesRef || "").replace(/[^a-zA-Z0-9_-]/g, "_")}.xlsx`;
+      return { wb, nomeArquivo };
+    }
+
+    function workbookParaBlob(wb) {
+      const arrayBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      return new Blob([arrayBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+    }
+
+    async function enviarExcelParaNuvem(wb, nomeArquivo, pasta = "atual") {
+      if (!supabaseClient || typeof XLSX === "undefined") return "";
+      const blob = workbookParaBlob(wb);
+      const caminhoArquivo = `${pasta}/${nomeArquivo}`;
+
+      const { error } = await supabaseClient.storage
+        .from(BUCKET_EXCEL)
+        .upload(caminhoArquivo, blob, {
+          contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          upsert: true
+        });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const { data } = supabaseClient.storage
+        .from(BUCKET_EXCEL)
+        .getPublicUrl(caminhoArquivo);
+
+      return (data && data.publicUrl) || "";
+    }
+
+    async function enviarPacoteExcelCompleto(mesRef, despesasRef, categoriasRef, pasta = "atual") {
+      if (!supabaseClient || typeof XLSX === "undefined") {
+        return { excelContasUrl: "", excelCategoriasUrl: "", ok: false };
+      }
+
+      const pacoteContas = montarWorkbookContas(mesRef, despesasRef);
+      const pacoteCategorias = montarWorkbookCategorias(mesRef, categoriasRef);
+
+      const [excelContasUrl, excelCategoriasUrl] = await Promise.all([
+        enviarExcelParaNuvem(pacoteContas.wb, pacoteContas.nomeArquivo, pasta),
+        enviarExcelParaNuvem(pacoteCategorias.wb, pacoteCategorias.nomeArquivo, pasta)
+      ]);
+
+      return { excelContasUrl, excelCategoriasUrl, ok: true };
+    }
+
+    async function salvarNoSupabase(cicloEncerradoParaExcel = null) {
+      salvarEstadoLocal();
+      if (!supabaseClient) {
+        atualizarStatusNuvem("Sincronização na nuvem indisponível no momento.");
+        return false;
+      }
+
+      try {
+        if (cicloEncerradoParaExcel) {
+          const { excelContasUrl, excelCategoriasUrl, ok } = await enviarPacoteExcelCompleto(
+            cicloEncerradoParaExcel.mesAno,
+            cicloEncerradoParaExcel.despesas,
+            cicloEncerradoParaExcel.categorias,
+            "historico"
+          );
+          if (ok) {
+            estado.historico = estado.historico.map((item) =>
+              item.mesAno === cicloEncerradoParaExcel.mesAno
+                ? { ...item, excelContasUrl, excelCategoriasUrl }
+                : item
+            );
+            salvarEstadoLocal();
+            renderizarHistorico();
+          }
+        } else {
+          await enviarPacoteExcelCompleto(
+            estado.mesAno,
+            estado.despesas,
+            estado.categorias,
+            "atual"
+          );
+        }
+      } catch (err) {
+        atualizarStatusNuvem(`Erro ao enviar Excel na nuvem: <strong>${escaparHTML(err.message)}</strong>`);
+        return false;
+      }
+
+      const { error } = await supabaseClient
+        .from("fluxobox_estado")
+        .upsert({
+          id: REGISTRO_ID,
+          mes_ano: estado.mesAno,
+          despesas: estado.despesas,
+          categorias: estado.categorias,
+          historico: normalizarHistorico(estado.historico),
+          atualizado_em: new Date().toISOString()
+        });
+
+      if (error) {
+        atualizarStatusNuvem(`Erro ao sincronizar na nuvem: <strong>${escaparHTML(error.message)}</strong>`);
+        return false;
+      }
+
+      atualizarStatusNuvem(`Planilhas Excel sincronizadas na nuvem (${estado.historico.length} mês(es) no histórico).`);
+      return true;
+    }
+
+    async function sincronizarComSupabase(mostrarFeedback = false) {
+      if (!supabaseClient) {
+        atualizarStatusNuvem("Sincronização na nuvem indisponível no momento.");
+        return;
+      }
+
+      const { data, error } = await supabaseClient
+        .from("fluxobox_estado")
+        .select("mes_ano, despesas, categorias, historico")
+        .eq("id", REGISTRO_ID)
+        .maybeSingle();
+
+      if (error) {
+        atualizarStatusNuvem(`Erro ao atualizar na nuvem: <strong>${escaparHTML(error.message)}</strong>`);
+        return;
+      }
+
+      if (data) {
+        estado = normalizarEstadoCompleto(data);
+        salvarEstadoLocal();
+        renderizar();
+        atualizarStatusNuvem(
+          `Atualizado na nuvem (${estado.historico.length} mês(es) no histórico).`
+        );
+      } else {
+        await salvarNoSupabase();
+        if (mostrarFeedback) {
+          atualizarStatusNuvem("Registro inicial criado na nuvem.");
+        }
+      }
+    }
+
+    function parseValorBRL(texto) {
+      if (typeof texto === "number") return texto;
+      const limpo = texto
+        .replace(/R\$/gi, "")
+        .replace(/\$/g, "")
+        .replace(/\s+/g, "")
+        .trim();
+
+      if (!limpo) return NaN;
+
+      if (limpo.includes(",")) {
+        return parseFloat(limpo.replace(/\./g, "").replace(",", "."));
+      }
+      return parseFloat(limpo);
+    }
+
+    function formatarBRL(numero) {
+      return numero.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    function formatarSaldoSinalBRL(numero) {
+      const absFormatado = formatarBRL(Math.abs(numero));
+      if (numero < 0) return `-${absFormatado}`;
+      return absFormatado;
+    }
+
+    function isCategoriaEntrada(categoria) {
+      return CATEGORIAS_ENTRADA.includes(normalizarNomeCategoria(categoria));
+    }
+
+    function isCategoriaSaidaCasa(categoria) {
+      return CATEGORIAS_SAIDA_CASA.includes(categoria);
+    }
+
+    function valorAssinadoCategoria(item) {
+      const valorAbs = Math.abs(Number(item.valor) || 0);
+      if (isCategoriaEntrada(item.categoria)) return valorAbs;
+      if (isCategoriaSaidaCasa(item.categoria)) return -valorAbs;
+      return Number(item.valor) || 0;
+    }
+
+    function formatarValorTabelaCategoria(item) {
+      const signed = valorAssinadoCategoria(item);
+      return formatarSaldoSinalBRL(signed);
+    }
+
+    function formatarNumeroOrdem(i) {
+      return String(i + 1).padStart(2, "0");
+    }
+
+    function definirFiltro(tipo) {
+      filtroAtual = tipo;
+      document.querySelectorAll(".filtro-btn").forEach((btn) => {
+        btn.classList.toggle("ativo", btn.dataset.filtro === tipo);
+      });
+      renderizarCategorias();
+    }
+
+    function renderizar() {
+      document.getElementById("badgeMes").textContent = estado.mesAno;
+      document.getElementById("tituloNota").textContent = `NOTA GERAL — ${estado.mesAno}`;
+      document.getElementById("tituloCategorias").textContent = `LANÇAMENTO POR CATEGORIA — ${estado.mesAno}`;
+
+      const tbody = document.getElementById("corpoNota");
+      tbody.innerHTML = "";
+
+      if (estado.despesas.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty">Nenhuma conta registrada neste mês.</td></tr>`;
+      } else {
+        estado.despesas.forEach((item, idx) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td class="num">${formatarNumeroOrdem(idx)}</td>
+            <td>${escaparHTML(item.descricao)}</td>
+            <td class="val">${formatarBRL(item.valor)}</td>
+            <td class="acoes">
+              <button type="button" class="btn-edit" onclick="corrigirDespesa(${idx})">Corrigir</button>
+              <button type="button" class="btn-danger" onclick="excluirDespesa(${idx})">Excluir</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      renderizarCategorias();
+      renderizarHistorico();
+      salvarEstadoLocal();
+    }
+
+    function renderizarCategorias() {
+      const tbody = document.getElementById("corpoCategorias");
+      tbody.innerHTML = "";
+
+      const listaFiltrada = estado.categorias
+        .map((item, realIdx) => ({ ...item, categoria: normalizarNomeCategoria(item.categoria), realIdx }))
+        .filter((item) => filtroAtual === "Todas" || item.categoria === filtroAtual);
+
+      if (listaFiltrada.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty">Nenhum lançamento em "${escaparHTML(filtroAtual)}" neste mês.</td></tr>`;
+        return;
+      }
+
+      listaFiltrada.forEach((item, idx) => {
+        const signed = valorAssinadoCategoria(item);
+        const classeCor = signed < 0 ? "saldo-negativo" : "saldo-positivo";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="num">${formatarNumeroOrdem(idx)}</td>
+          <td>${escaparHTML(item.categoria)}</td>
+          <td>${escaparHTML(item.descricao)}</td>
+          <td class="val ${classeCor}">${formatarValorTabelaCategoria(item)}</td>
+          <td class="acoes">
+            <button type="button" class="btn-edit" onclick="corrigirCategoria(${item.realIdx})">Corrigir</button>
+            <button type="button" class="btn-danger" onclick="excluirCategoria(${item.realIdx})">Excluir</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderizarHistorico() {
+      const container = document.getElementById("listaHistorico");
+      if (!estado.historico || estado.historico.length === 0) {
+        container.innerHTML = `<p class="empty">Nenhum mês encerrado ainda.</p>`;
+        return;
+      }
+
+      container.innerHTML = "";
+      [...estado.historico].reverse().forEach((ciclo) => {
+        const div = document.createElement("div");
+        div.className = "historico-item";
+        const linhas = ciclo.despesas.length
+          ? ciclo.despesas
+              .map(
+                (d, i) =>
+                  `<div>${formatarNumeroOrdem(i)} | ${escaparHTML(d.descricao)} | <strong>${formatarBRL(d.valor)}</strong></div>`
+              )
+              .join("")
+          : `<div style="color: var(--muted);">Sem lançamentos.</div>`;
+
+        const linhasCat = (ciclo.categorias || []).length
+          ? ciclo.categorias
+              .map((c) => ({ ...c, categoria: normalizarNomeCategoria(c.categoria) }))
+              .map(
+                (c, i) =>
+                  `<div>${formatarNumeroOrdem(i)} | [${escaparHTML(c.categoria)}] ${escaparHTML(c.descricao)} | <strong>${formatarValorTabelaCategoria(c)}</strong></div>`
+              )
+              .join("")
+          : `<div style="color: var(--muted);">Sem lançamentos por categoria.</div>`;
+
+        const linksExcel = [];
+        if (ciclo.excelContasUrl) {
+          linksExcel.push(`<a class="link-excel" href="${escaparHTML(ciclo.excelContasUrl)}" target="_blank" rel="noopener">Baixar Excel Contas (.xlsx)</a>`);
+        }
+        if (ciclo.excelCategoriasUrl) {
+          linksExcel.push(`<a class="link-excel" href="${escaparHTML(ciclo.excelCategoriasUrl)}" target="_blank" rel="noopener">Baixar Excel Categorias (.xlsx)</a>`);
+        }
+
+        div.innerHTML = `
+          <div class="historico-topo">
+            <span>NOTA GERAL — ${escaparHTML(ciclo.mesAno)}</span>
+            <span style="color: var(--muted); font-size: 0.82rem;">${ciclo.despesas.length} conta(s)</span>
+          </div>
+          <div style="font-size: 0.88rem; margin-bottom: 6px;">${linhas}</div>
+          <div style="font-size: 0.88rem;">${linhasCat}</div>
+          ${linksExcel.length ? `<div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:4px;">${linksExcel.join("")}</div>` : ""}
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function escaparHTML(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    document.getElementById("formDespesa").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const descInput = document.getElementById("descricao");
+      const valInput = document.getElementById("valor");
+
+      const descricao = descInput.value.trim();
+      const valor = parseValorBRL(valInput.value);
+
+      if (!descricao || isNaN(valor) || valor < 0) {
+        alert("Informe uma descrição válida e um valor em Reais (ex: 120,50).");
+        return;
+      }
+
+      const duplicada = estado.despesas.some(
+        (d) => d.descricao.toLowerCase() === descricao.toLowerCase() && Number(d.valor) === Number(valor)
+      );
+
+      if (duplicada) {
+        const confirmar = confirm(
+          `Já existe uma conta "${descricao}" no valor de ${formatarBRL(valor)} neste mês. É uma duplicidade? Deseja lançar mesmo assim?`
+        );
+        if (!confirmar) return;
+      }
+
+      estado.despesas.push({ descricao, valor });
+      document.getElementById("resumoFinanceiro").classList.remove("visivel");
+
+      descInput.value = "";
+      valInput.value = "";
+      descInput.focus();
+
+      renderizar();
+    });
+
+    document.getElementById("formCategoria").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const tipoSelect = document.getElementById("catTipo");
+      const descInput = document.getElementById("catDescricao");
+      const valInput = document.getElementById("catValor");
+
+      const categoria = normalizarNomeCategoria(tipoSelect.value);
+      const descricao = descInput.value.trim();
+      const valor = parseValorBRL(valInput.value);
+
+      if (!descricao || isNaN(valor) || valor < 0) {
+        alert("Informe uma descrição válida e um valor em Reais (ex: 50,00).");
+        return;
+      }
+
+      estado.categorias.push({ categoria, descricao, valor });
+      document.getElementById("resumoCategorias").classList.remove("visivel");
+
+      descInput.value = "";
+      valInput.value = "";
+      descInput.focus();
+
+      renderizar();
+    });
+
+    function corrigirDespesa(idx) {
+      const atual = estado.despesas[idx];
+      if (!atual) return;
+
+      const novaDesc = prompt("Nova descrição:", atual.descricao);
+      if (novaDesc === null) return;
+
+      const novoValTexto = prompt("Novo valor em R$:", String(atual.valor).replace(".", ","));
+      if (novoValTexto === null) return;
+
+      const novoVal = parseValorBRL(novoValTexto);
+      if (!novaDesc.trim() || isNaN(novoVal) || novoVal < 0) {
+        alert("Dados inválidos. Nenhuma alteração foi feita.");
+        return;
+      }
+
+      estado.despesas[idx] = { descricao: novaDesc.trim(), valor: novoVal };
+      document.getElementById("resumoFinanceiro").classList.remove("visivel");
+      renderizar();
+    }
+
+    function excluirDespesa(idx) {
+      const item = estado.despesas[idx];
+      if (!item) return;
+
+      const ok = confirm(`Deseja excluir o lançamento ${formatarNumeroOrdem(idx)} — "${item.descricao}" (${formatarBRL(item.valor)})?`);
+      if (!ok) return;
+
+      estado.despesas.splice(idx, 1);
+      document.getElementById("resumoFinanceiro").classList.remove("visivel");
+      renderizar();
+    }
+
+    function corrigirCategoria(realIdx) {
+      const atual = estado.categorias[realIdx];
+      if (!atual) return;
+
+      const catAtualNorm = normalizarNomeCategoria(atual.categoria);
+      const novaCat = prompt("Categoria (Frete, Vendas, Casa):", catAtualNorm);
+      if (novaCat === null) return;
+
+      const catAjustada = CATEGORIAS.find((c) => c.toLowerCase() === novaCat.trim().toLowerCase());
+      if (!catAjustada) {
+        alert("Categoria inválida. Use: Frete, Vendas ou Casa.");
+        return;
+      }
+
+      const novaDesc = prompt("Nova descrição:", atual.descricao);
+      if (novaDesc === null) return;
+
+      const novoValTexto = prompt("Novo valor em R$:", String(atual.valor).replace(".", ","));
+      if (novoValTexto === null) return;
+
+      const novoVal = parseValorBRL(novoValTexto);
+      if (!novaDesc.trim() || isNaN(novoVal) || novoVal < 0) {
+        alert("Dados inválidos. Nenhuma alteração foi feita.");
+        return;
+      }
+
+      estado.categorias[realIdx] = { categoria: catAjustada, descricao: novaDesc.trim(), valor: novoVal };
+      document.getElementById("resumoCategorias").classList.remove("visivel");
+      renderizar();
+    }
+
+    function excluirCategoria(realIdx) {
+      const item = estado.categorias[realIdx];
+      if (!item) return;
+
+      const catNorm = normalizarNomeCategoria(item.categoria);
+      const ok = confirm(`Deseja excluir [${catNorm}] "${item.descricao}" (${formatarValorTabelaCategoria({ ...item, categoria: catNorm })})?`);
+      if (!ok) return;
+
+      estado.categorias.splice(realIdx, 1);
+      document.getElementById("resumoCategorias").classList.remove("visivel");
+      renderizar();
+    }
+
+    function fecharContas() {
+      const qtd = estado.despesas.length;
+      const totalCentavos = estado.despesas.reduce((acc, item) => acc + Math.round(Number(item.valor) * 100), 0);
+      const total = totalCentavos / 100;
+
+      document.getElementById("resQtd").textContent = qtd;
+      document.getElementById("resSubtotal").textContent = formatarBRL(total);
+      document.getElementById("resTotal").textContent = formatarBRL(total);
+      document.getElementById("resumoFinanceiro").classList.add("visivel");
+    }
+
+    function calcularResumoCategoriasCentavos(itens) {
+      const totaisPorCatCentavos = { "Frete": 0, "Vendas": 0, "Casa": 0 };
+      let entradasCentavos = 0;
+      let saidasCentavos = 0;
+
+      itens.forEach((item) => {
+        const catNorm = normalizarNomeCategoria(item.categoria);
+        const absCentavos = Math.round(Math.abs(Number(item.valor) || 0) * 100);
+        if (totaisPorCatCentavos[catNorm] !== undefined) {
+          totaisPorCatCentavos[catNorm] += absCentavos;
+        }
+        if (isCategoriaEntrada(catNorm)) {
+          entradasCentavos += absCentavos;
+        } else if (isCategoriaSaidaCasa(catNorm)) {
+          saidasCentavos += absCentavos;
+        }
+      });
+
+      return {
+        totaisPorCatCentavos,
+        entradasCentavos,
+        saidasCentavos,
+        totalGeralCentavos: entradasCentavos - saidasCentavos
+      };
+    }
+
+    function fecharCategorias() {
+      const resumo = calcularResumoCategoriasCentavos(estado.categorias);
+
+      document.getElementById("detalhesCategorias").innerHTML = CATEGORIAS.map((cat) => {
+        const catCentavos = resumo.totaisPorCatCentavos[cat] || 0;
+        const signedReais = isCategoriaEntrada(cat) ? (catCentavos / 100) : -(catCentavos / 100);
+        const classeCor = signedReais < 0 ? "saldo-negativo" : "saldo-positivo";
+        return `
+          <div class="resumo-linha">
+            <span>${escaparHTML(cat)}:</span>
+            <strong class="${classeCor}">${formatarSaldoSinalBRL(signedReais)}</strong>
+          </div>
+        `;
+      }).join("");
+
+      const totalEntradas = resumo.entradasCentavos / 100;
+      const totalSaidas = -(resumo.saidasCentavos / 100);
+      const totalGeral = resumo.totalGeralCentavos / 100;
+
+      const elEntradas = document.getElementById("resCatEntradas");
+      const elSaidas = document.getElementById("resCatSaidas");
+      const elTotal = document.getElementById("resCatTotal");
+
+      elEntradas.textContent = formatarSaldoSinalBRL(totalEntradas);
+      elEntradas.className = "saldo-positivo";
+
+      elSaidas.textContent = formatarSaldoSinalBRL(totalSaidas);
+      elSaidas.className = "saldo-negativo";
+
+      elTotal.textContent = formatarSaldoSinalBRL(totalGeral);
+      elTotal.className = totalGeral < 0 ? "saldo-negativo" : "saldo-positivo";
+
+      document.getElementById("resumoCategorias").classList.add("visivel");
+    }
+
+    async function fecharTudo() {
+      fecharContas();
+      fecharCategorias();
+      await salvarNoSupabase(null);
+    }
+
+    function novoMes() {
+      etapaModalNovoMes = "input";
+      proximoMesPendente = "";
+
+      const backdrop = document.getElementById("modalNovoMes");
+      const titulo = document.getElementById("modalTitulo");
+      const texto = document.getElementById("modalTexto");
+      const input = document.getElementById("modalInputMes");
+      const btnConfirmar = document.getElementById("modalBtnConfirmar");
+
+      titulo.textContent = "Novo Mês";
+      texto.textContent = "Informe o novo MÊS/ANO (ex: DEZEMBRO/2026):";
+      input.style.display = "block";
+      input.value = mesAtualPadrao();
+      btnConfirmar.textContent = "OK";
+
+      backdrop.classList.add("aberto");
+      setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 20);
+    }
+
+    function fecharModalNovoMes() {
+      document.getElementById("modalNovoMes").classList.remove("aberto");
+      etapaModalNovoMes = "input";
+      proximoMesPendente = "";
+    }
+
+    async function confirmarModalNovoMes() {
+      const input = document.getElementById("modalInputMes");
+      const titulo = document.getElementById("modalTitulo");
+      const texto = document.getElementById("modalTexto");
+      const btnConfirmar = document.getElementById("modalBtnConfirmar");
+
+      if (etapaModalNovoMes === "input") {
+        const valorDigitado = input.value.trim().toUpperCase();
+        if (!valorDigitado) {
+          input.focus();
+          return;
+        }
+
+        proximoMesPendente = valorDigitado;
+        etapaModalNovoMes = "confirm";
+
+        titulo.textContent = "Encerrar Mês";
+        texto.textContent = `Encerrar ${estado.mesAno} e iniciar ${proximoMesPendente} com a nota zerada? As planilhas do mês atual serão enviadas para a nuvem.`;
+        input.style.display = "none";
+        btnConfirmar.textContent = "Confirmar";
+        return;
+      }
+
+      const cicloEncerrado = {
+        mesAno: estado.mesAno,
+        despesas: [...estado.despesas],
+        categorias: [...estado.categorias],
+        excelContasUrl: "",
+        excelCategoriasUrl: ""
+      };
+
+      estado.historico.push(cicloEncerrado);
+
+      estado.mesAno = proximoMesPendente;
+      estado.despesas = [];
+      estado.categorias = [];
+      document.getElementById("resumoFinanceiro").classList.remove("visivel");
+      document.getElementById("resumoCategorias").classList.remove("visivel");
+
+      fecharModalNovoMes();
+      renderizar();
+      await salvarNoSupabase(cicloEncerrado);
+    }
+
+    document.getElementById("modalInputMes").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmarModalNovoMes();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        fecharModalNovoMes();
+      }
+    });
+
+    document.getElementById("modalNovoMes").addEventListener("click", (e) => {
+      if (e.target.id === "modalNovoMes") {
+        fecharModalNovoMes();
+      }
+    });
+
+    function somarItensCentavos(itens) {
+      const totalCentavos = itens.reduce(
+        (acc, item) => acc + Math.round(Number(item.valor) * 100),
+        0
+      );
+      return totalCentavos / 100;
+    }
+
+    function criarPlanilhaNoModelo(itens, incluirResumoSaldo = false) {
+      const linhas = [
+        ["LANCAMENTO POR CATEGORIA", null, null, null],
+        ["Nº", "CATEGORIA", "DESCRIÇÃO", "VALOR "]
+      ];
+
+      const inicioDados = 3;
+      itens.forEach((item, idx) => {
+        const catNorm = normalizarNomeCategoria(item.categoria);
+        const itemNorm = { ...item, categoria: catNorm };
+        const valorPlanilha = incluirResumoSaldo ? valorAssinadoCategoria(itemNorm) : Number(item.valor);
+        linhas.push([idx + 1, catNorm, item.descricao, valorPlanilha]);
+      });
+
+      const ultimaLinhaDados = inicioDados + itens.length - 1;
+      const linhaPrimeiraResumo = itens.length > 0 ? ultimaLinhaDados + 1 : inicioDados;
+      let linhaUltimaMoeda = linhaPrimeiraResumo;
+      const linhasTotalRefs = [];
+
+      if (incluirResumoSaldo) {
+        const resumo = calcularResumoCategoriasCentavos(itens);
+        const totalEntradas = resumo.entradasCentavos / 100;
+        const totalSaidas = -(resumo.saidasCentavos / 100);
+        const totalGeral = resumo.totalGeralCentavos / 100;
+
+        linhas.push([null, null, "TOTAL ENTRADAS", totalEntradas]);
+        linhas.push([null, null, "TOTAL SAÍDAS", totalSaidas]);
+        linhas.push([null, null, "TOTAL GERAL", totalGeral]);
+
+        linhaUltimaMoeda = linhaPrimeiraResumo + 2;
+        for (let r = linhaPrimeiraResumo; r <= linhaUltimaMoeda; r++) {
+          linhasTotalRefs.push(`C${r}`, `D${r}`);
+        }
+      } else {
+        const totalGeral = somarItensCentavos(itens);
+        linhas.push([null, null, "TOTAL", totalGeral]);
+        linhasTotalRefs.push(`C${linhaPrimeiraResumo}`, `D${linhaPrimeiraResumo}`);
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(linhas);
+      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
+      ws["!cols"] = [{ wch: 7 }, { wch: 18 }, { wch: 26 }, { wch: 15 }];
+
+      const estiloCentralizadoPadrao = { alignment: { horizontal: "center", vertical: "center" } };
+      const estiloDestaque = {
+        font: { name: "Times New Roman", sz: 10, bold: true },
+        alignment: { horizontal: "center", vertical: "center" }
+      };
+
+      const colunas = ["A", "B", "C", "D"];
+      for (let r = 1; r <= linhaUltimaMoeda; r++) {
+        colunas.forEach((col) => {
+          const ref = `${col}${r}`;
+          if (!ws[ref]) ws[ref] = { t: "s", v: "" };
+          ws[ref].s = { ...(ws[ref].s || {}), ...estiloCentralizadoPadrao };
+        });
+      }
+
+      for (let r = inicioDados; r <= linhaUltimaMoeda; r++) {
+        const cellRef = `D${r}`;
+        if (ws[cellRef]) {
+          ws[cellRef].z = '"R$"\\ #,##0.00;-"R$"\\ #,##0.00;"R$"\\ 0.00';
+        }
+      }
+
+      ["A1", "A2", "B2", "C2", "D2", ...linhasTotalRefs].forEach((ref) => {
+        if (ws[ref]) ws[ref].s = estiloDestaque;
+      });
+
+      return ws;
+    }
+
+    function gerarExcel() {
+      if (typeof XLSX === "undefined") {
+        alert("Biblioteca de Excel não carregou. Verifique sua conexão ou tente novamente.");
+        return;
+      }
+
+      const { wb, nomeArquivo } = montarWorkbookContas(estado.mesAno, estado.despesas);
+      XLSX.writeFile(wb, nomeArquivo);
+    }
+
+    function gerarExcelCategorias() {
+      if (typeof XLSX === "undefined") {
+        alert("Biblioteca de Excel não carregou. Verifique sua conexão ou tente novamente.");
+        return;
+      }
+
+      const { wb, nomeArquivo } = montarWorkbookCategorias(estado.mesAno, estado.categorias);
+      XLSX.writeFile(wb, nomeArquivo);
+    }
+
+    renderizar();
+    sincronizarComSupabase(false);
+  </script>
+</body>
+</html>
