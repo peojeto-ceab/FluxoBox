@@ -90,7 +90,7 @@
 
     .form-categorias {
       display: grid;
-      grid-template-columns: 185px 1fr 165px auto;
+      grid-template-columns: 200px 1fr 165px auto;
       gap: 10px;
       margin-bottom: 14px;
       align-items: stretch;
@@ -98,6 +98,100 @@
 
     @media (max-width: 720px) {
       .form-categorias { grid-template-columns: 1fr; }
+    }
+
+    .custom-select {
+      position: relative;
+      width: 100%;
+    }
+
+    .custom-select-trigger {
+      width: 100%;
+      background: var(--card-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      text-align: left;
+    }
+
+    .custom-select-trigger:hover,
+    .custom-select.aberto .custom-select-trigger {
+      border-color: var(--accent);
+    }
+
+    .custom-select-seta {
+      color: var(--muted);
+      font-size: 0.8rem;
+      transition: transform 0.15s ease;
+    }
+
+    .custom-select.aberto .custom-select-seta {
+      transform: rotate(180deg);
+      color: #34d399;
+    }
+
+    .custom-select-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 6px;
+      box-shadow: 0 18px 40px rgba(2, 6, 23, 0.72);
+      z-index: 200;
+      display: none;
+      max-height: 270px;
+      overflow-y: auto;
+    }
+
+    .custom-select.aberto .custom-select-menu {
+      display: block;
+    }
+
+    .custom-select-option {
+      width: 100%;
+      background: transparent;
+      color: var(--text);
+      border-radius: 7px;
+      padding: 9px 11px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-align: left;
+    }
+
+    .custom-select-option:hover {
+      background: rgba(148, 163, 184, 0.12);
+    }
+
+    .custom-select-option.selecionada {
+      background: rgba(16, 185, 129, 0.16);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+
+    .custom-select-option.nova-cat {
+      margin-top: 4px;
+      border-top: 1px solid var(--border);
+      border-radius: 0 0 7px 7px;
+      padding-top: 10px;
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.08);
+    }
+
+    .custom-select-option.nova-cat:hover {
+      background: rgba(16, 185, 129, 0.18);
     }
 
     input, select {
@@ -452,12 +546,14 @@
       <div class="card-title">2. Lançamento por Categoria</div>
 
       <form id="formCategoria" class="form-categorias">
-        <select id="catTipo" required aria-label="Selecionar categoria">
-          <option value="Frete">Frete</option>
-          <option value="Vendas">Vendas</option>
-          <option value="Casa">Casa</option>
-          <option value="__NOVA_CATEGORIA__">+ Nova categoria...</option>
-        </select>
+        <div id="seletorCategoriaCustom" class="custom-select">
+          <button type="button" id="catTipoTrigger" class="custom-select-trigger" onclick="alternarMenuCategoria(event)" aria-haspopup="listbox" aria-expanded="false">
+            <span id="catTipoValor">Frete</span>
+            <span class="custom-select-seta">▼</span>
+          </button>
+          <div id="catTipoMenu" class="custom-select-menu" role="listbox" aria-label="Selecionar categoria"></div>
+          <input type="hidden" id="catTipo" value="Frete" />
+        </div>
         <input type="text" id="catDescricao" placeholder="Descrição (ex: Entrega, Venda, Casa)" required />
         <input type="text" id="catValor" placeholder="Valor em R$ (ex: 50,00)" required />
         <button type="submit" class="btn-add">Adicionar</button>
@@ -581,12 +677,10 @@
     const CATEGORIAS_PADRAO = ["Frete", "Vendas", "Casa"];
     const CATEGORIAS_ENTRADA = ["Frete", "Vendas"];
     const CATEGORIAS_SAIDA_CASA = ["Casa", "Mercado", "Farmácia"];
-    const OPCAO_NOVA_CATEGORIA = "__NOVA_CATEGORIA__";
 
     let filtroDiaAtual = "Todos";
     let filtroAtual = "Todas";
     let sinalNovaCategoria = 1;
-    let categoriaAnteriorSelect = "Frete";
     let etapaModalNovoMes = "input";
     let proximoMesPendente = "";
     let salvandoNaNuvem = false;
@@ -1110,25 +1204,72 @@
       return String(i + 1).padStart(2, "0");
     }
 
+    function fecharMenuCategoria() {
+      const wrap = document.getElementById("seletorCategoriaCustom");
+      const trigger = document.getElementById("catTipoTrigger");
+      if (wrap) wrap.classList.remove("aberto");
+      if (trigger) trigger.setAttribute("aria-expanded", "false");
+    }
+
+    function alternarMenuCategoria(event) {
+      if (event) event.stopPropagation();
+      const wrap = document.getElementById("seletorCategoriaCustom");
+      const trigger = document.getElementById("catTipoTrigger");
+      if (!wrap) return;
+      const vaiAbrir = !wrap.classList.contains("aberto");
+      wrap.classList.toggle("aberto", vaiAbrir);
+      if (trigger) trigger.setAttribute("aria-expanded", String(vaiAbrir));
+    }
+
+    function escolherCategoriaCustom(cat) {
+      const fmt = normalizarNomeCategoria(cat);
+      const hidden = document.getElementById("catTipo");
+      const valorEl = document.getElementById("catTipoValor");
+      if (hidden) hidden.value = fmt;
+      if (valorEl) valorEl.textContent = fmt;
+      fecharMenuCategoria();
+      renderizarControlesCategoria();
+    }
+
+    document.addEventListener("click", (e) => {
+      const wrap = document.getElementById("seletorCategoriaCustom");
+      if (wrap && !wrap.contains(e.target)) {
+        fecharMenuCategoria();
+      }
+    });
+
     function renderizarControlesCategoria() {
       const listaCats = obterListaCategorias(estado);
       estado.categoriasDisponiveis = listaCats;
       estado.sinaisCategorias = obterMapaSinaisCategorias(estado);
 
-      const select = document.getElementById("catTipo");
-      if (select) {
-        const valorAnterior = formatarNomeCategoria(select.value);
-        select.innerHTML = [
-          ...listaCats.map((cat) => `<option value="${escaparHTML(cat)}">${escaparHTML(cat)}</option>`),
-          `<option value="${OPCAO_NOVA_CATEGORIA}">+ Nova categoria...</option>`
+      const hidden = document.getElementById("catTipo");
+      const valorEl = document.getElementById("catTipoValor");
+      const menuEl = document.getElementById("catTipoMenu");
+
+      if (hidden && valorEl && menuEl) {
+        const atual = formatarNomeCategoria(hidden.value);
+        const selecionada = listaCats.includes(atual) ? atual : (listaCats[0] || "Frete");
+        hidden.value = selecionada;
+        valorEl.textContent = selecionada;
+
+        menuEl.innerHTML = [
+          ...listaCats.map((cat) => {
+            const ativa = cat === selecionada ? " selecionada" : "";
+            const marca = cat === selecionada ? "✓" : "";
+            return `
+              <button type="button" class="custom-select-option${ativa}" role="option" aria-selected="${cat === selecionada}" onclick="escolherCategoriaCustom('${escaparHTML(cat)}')">
+                <span>${escaparHTML(cat)}</span>
+                <span>${marca}</span>
+              </button>
+            `;
+          }),
+          `
+            <button type="button" class="custom-select-option nova-cat" onclick="abrirModalCategoria()">
+              <span>+ Nova categoria...</span>
+            </button>
+          `
         ].join("");
-        if (listaCats.includes(valorAnterior)) {
-          select.value = valorAnterior;
-          categoriaAnteriorSelect = valorAnterior;
-        } else if (listaCats.length > 0) {
-          select.value = listaCats[0];
-          categoriaAnteriorSelect = listaCats[0];
-        }
       }
 
       const barra = document.getElementById("barraFiltros");
@@ -1161,6 +1302,7 @@
     }
 
     function abrirModalCategoria() {
+      fecharMenuCategoria();
       const backdrop = document.getElementById("modalCategoria");
       const input = document.getElementById("modalInputCategoria");
       sinalNovaCategoria = 1;
@@ -1174,11 +1316,6 @@
 
     function fecharModalCategoria() {
       document.getElementById("modalCategoria").classList.remove("aberto");
-      const select = document.getElementById("catTipo");
-      if (select && select.value === OPCAO_NOVA_CATEGORIA) {
-        const listaCats = obterListaCategorias(estado);
-        select.value = listaCats.includes(categoriaAnteriorSelect) ? categoriaAnteriorSelect : (listaCats[0] || "Frete");
-      }
     }
 
     async function confirmarModalCategoria() {
@@ -1202,27 +1339,17 @@
       mapaSinais[categoriaFinal] = sinalNovaCategoria;
       estado.sinaisCategorias = mapaSinais;
 
-      document.getElementById("modalCategoria").classList.remove("aberto");
+      const hidden = document.getElementById("catTipo");
+      if (hidden) hidden.value = categoriaFinal;
+
+      fecharModalCategoria();
       renderizarControlesCategoria();
       salvarEstadoLocal();
 
-      const select = document.getElementById("catTipo");
-      if (select) {
-        select.value = categoriaFinal;
-        categoriaAnteriorSelect = categoriaFinal;
-      }
       document.getElementById("catDescricao").focus();
 
       await salvarNoSupabase(null, false);
     }
-
-    document.getElementById("catTipo").addEventListener("change", (e) => {
-      if (e.target.value === OPCAO_NOVA_CATEGORIA) {
-        abrirModalCategoria();
-      } else {
-        categoriaAnteriorSelect = e.target.value;
-      }
-    });
 
     document.getElementById("modalInputCategoria").addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -1469,16 +1596,11 @@
 
     document.getElementById("formCategoria").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const tipoSelect = document.getElementById("catTipo");
+      const tipoHidden = document.getElementById("catTipo");
       const descInput = document.getElementById("catDescricao");
       const valInput = document.getElementById("catValor");
 
-      if (tipoSelect.value === OPCAO_NOVA_CATEGORIA) {
-        abrirModalCategoria();
-        return;
-      }
-
-      const categoria = normalizarNomeCategoria(tipoSelect.value);
+      const categoria = normalizarNomeCategoria(tipoHidden ? tipoHidden.value : "Frete");
       const descricao = descInput.value.trim();
       const valor = parseValorBRL(valInput.value);
 
