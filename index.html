@@ -846,6 +846,45 @@
       return { excelContasUrl, excelCategoriasUrl, ok: true };
     }
 
+    function montarPayloadNuvem() {
+      return {
+        id: REGISTRO_ID,
+        mes_ano: estado.mesAno,
+        despesas: estado.despesas,
+        categorias: estado.categorias,
+        categorias_disponiveis: obterListaCategorias(estado),
+        sinais_categorias: obterMapaSinaisCategorias(estado),
+        historico: normalizarHistorico(estado.historico),
+        atualizado_em: new Date().toISOString()
+      };
+    }
+
+    async function gravarLinhaFluxobox(payload) {
+      const { error } = await supabaseClient
+        .from("fluxobox_estado")
+        .upsert(payload);
+
+      if (!error) return null;
+
+      const msg = String(error.message || "").toLowerCase();
+      if (msg.includes("categorias_disponiveis") || msg.includes("sinais_categorias")) {
+        const payloadBase = {
+          id: payload.id,
+          mes_ano: payload.mes_ano,
+          despesas: payload.despesas,
+          categorias: payload.categorias,
+          historico: payload.historico,
+          atualizado_em: payload.atualizado_em
+        };
+        const { error: errorBase } = await supabaseClient
+          .from("fluxobox_estado")
+          .upsert(payloadBase);
+        return errorBase || null;
+      }
+
+      return error;
+    }
+
     async function salvarNoSupabase(cicloEncerradoParaExcel = null, sincronizarExcel = true) {
       salvarEstadoLocal();
       if (!supabaseClient) {
@@ -887,16 +926,7 @@
           );
         }
 
-        const { error } = await supabaseClient
-          .from("fluxobox_estado")
-          .upsert({
-            id: REGISTRO_ID,
-            mes_ano: estado.mesAno,
-            despesas: estado.despesas,
-            categorias: estado.categorias,
-            historico: normalizarHistorico(estado.historico),
-            atualizado_em: new Date().toISOString()
-          });
+        const error = await gravarLinhaFluxobox(montarPayloadNuvem());
 
         if (error) {
           atualizarStatusNuvem(`Erro ao sincronizar na nuvem: <strong>${escaparHTML(error.message)}</strong>`);
@@ -917,17 +947,34 @@
       }
     }
 
+    async function buscarLinhaFluxobox() {
+      const resCompleta = await supabaseClient
+        .from("fluxobox_estado")
+        .select("mes_ano, despesas, categorias, categorias_disponiveis, sinais_categorias, historico")
+        .eq("id", REGISTRO_ID)
+        .maybeSingle();
+
+      if (!resCompleta.error) return resCompleta;
+
+      const msg = String(resCompleta.error.message || "").toLowerCase();
+      if (msg.includes("categorias_disponiveis") || msg.includes("sinais_categorias")) {
+        return await supabaseClient
+          .from("fluxobox_estado")
+          .select("mes_ano, despesas, categorias, historico")
+          .eq("id", REGISTRO_ID)
+          .maybeSingle();
+      }
+
+      return resCompleta;
+    }
+
     async function sincronizarComSupabase(mostrarFeedback = false) {
       if (!supabaseClient || salvandoNaNuvem) {
         if (!supabaseClient) atualizarStatusNuvem("Sincronização na nuvem indisponível no momento.");
         return;
       }
 
-      const { data, error } = await supabaseClient
-        .from("fluxobox_estado")
-        .select("mes_ano, despesas, categorias, historico")
-        .eq("id", REGISTRO_ID)
-        .maybeSingle();
+      const { data, error } = await buscarLinhaFluxobox();
 
       if (error) {
         atualizarStatusNuvem(`Erro ao atualizar na nuvem: <strong>${escaparHTML(error.message)}</strong>`);
@@ -938,11 +985,12 @@
         const novoEstado = normalizarEstadoCompleto({
           ...data,
           categoriasDisponiveis: obterListaCategorias({
-            categoriasDisponiveis: estado.categoriasDisponiveis,
-            categorias: data.categorias
+            categoriasDisponiveis: [...(estado.categoriasDisponiveis || []), ...(data.categorias_disponiveis || [])],
+            categorias: data.categorias,
+            sinaisCategorias: data.sinais_categorias
           }),
           sinaisCategorias: obterMapaSinaisCategorias({
-            sinaisCategorias: estado.sinaisCategorias,
+            sinaisCategorias: { ...(estado.sinaisCategorias || {}), ...(data.sinais_categorias || {}) },
             categorias: data.categorias
           })
         });
@@ -984,11 +1032,18 @@
               const novoEstado = normalizarEstadoCompleto({
                 ...novoRegistro,
                 categoriasDisponiveis: obterListaCategorias({
-                  categoriasDisponiveis: estado.categoriasDisponiveis,
-                  categorias: novoRegistro.categorias
+                  categoriasDisponiveis: [
+                    ...(estado.categoriasDisponiveis || []),
+                    ...(novoRegistro.categorias_disponiveis || [])
+                  ],
+                  categorias: novoRegistro.categorias,
+                  sinaisCategorias: novoRegistro.sinais_categorias
                 }),
                 sinaisCategorias: obterMapaSinaisCategorias({
-                  sinaisCategorias: estado.sinaisCategorias,
+                  sinaisCategorias: {
+                    ...(estado.sinaisCategorias || {}),
+                    ...(novoRegistro.sinais_categorias || {})
+                  },
                   categorias: novoRegistro.categorias
                 })
               });
@@ -1139,7 +1194,7 @@
       document.getElementById("modalCategoria").classList.remove("aberto");
     }
 
-    function confirmarModalCategoria() {
+    async function confirmarModalCategoria() {
       const input = document.getElementById("modalInputCategoria");
       const nomeFormatado = formatarNomeCategoria(input.value);
       if (!nomeFormatado) {
@@ -1169,6 +1224,8 @@
         select.value = categoriaFinal;
       }
       document.getElementById("catDescricao").focus();
+
+      await salvarNoSupabase(null, false);
     }
 
     document.getElementById("modalInputCategoria").addEventListener("keydown", (e) => {
