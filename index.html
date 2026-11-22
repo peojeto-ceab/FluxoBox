@@ -527,6 +527,18 @@
       margin-bottom: 14px;
     }
 
+    .modal-destaque-item {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text);
+      word-break: break-word;
+    }
+
     .modal-campos {
       display: flex;
       flex-direction: column;
@@ -757,6 +769,19 @@
     </section>
   </div>
 
+  <!-- MODAL EXCLUIR ITEM -->
+  <div id="modalExcluirItem" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalExcluirTitulo">
+    <div class="modal-box">
+      <div id="modalExcluirTitulo" class="modal-titulo" style="color: #f87171;">Excluir Item</div>
+      <p id="modalExcluirTexto" class="modal-texto">Deseja realmente excluir este lançamento?</p>
+      <div id="modalExcluirDetalhes" class="modal-destaque-item"></div>
+      <div class="modal-acoes">
+        <button type="button" class="btn-cancel" onclick="fecharModalExcluirItem()">Cancelar</button>
+        <button type="button" id="btnConfirmarExcluirItem" class="btn-danger" style="padding: 10px 14px; font-size: 0.9rem;" onclick="confirmarModalExcluirItem()">Excluir</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL EDITAR CONTA -->
   <div id="modalEditarDespesa" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalEditDespesaTitulo">
     <div class="modal-box">
@@ -870,6 +895,7 @@
     let sinalNovaCategoria = 1;
     let indiceEditandoDespesa = null;
     let indiceEditandoCategoria = null;
+    let itemPendenteExclusao = null;
     let etapaModalNovoMes = "input";
     let proximoMesPendente = "";
     let salvandoNaNuvem = false;
@@ -1655,6 +1681,74 @@
       }
     });
 
+    function abrirModalExcluirItem(tipo, idx) {
+      if (tipo === "despesa") {
+        const item = estado.despesas[idx];
+        if (!item) return;
+        itemPendenteExclusao = { tipo: "despesa", idx };
+        document.getElementById("modalExcluirTitulo").textContent = "Excluir Conta";
+        document.getElementById("modalExcluirTexto").textContent = "Deseja excluir este lançamento da nota?";
+        document.getElementById("modalExcluirDetalhes").textContent =
+          `${formatarNumeroOrdem(idx)} — Data: ${formatarVencimentoTexto(item.vencimento)} | "${item.descricao}" (${formatarBRL(item.valor)})`;
+      } else {
+        const item = estado.categorias[idx];
+        if (!item) return;
+        const catNorm = normalizarNomeCategoria(item.categoria);
+        itemPendenteExclusao = { tipo: "categoria", idx };
+        document.getElementById("modalExcluirTitulo").textContent = "Excluir Lançamento";
+        document.getElementById("modalExcluirTexto").textContent = "Deseja excluir este lançamento por categoria?";
+        document.getElementById("modalExcluirDetalhes").textContent =
+          `${formatarNumeroOrdem(idx)} — [${catNorm}] "${item.descricao}" (${formatarValorTabelaCategoria({ ...item, categoria: catNorm })})`;
+      }
+
+      const backdrop = document.getElementById("modalExcluirItem");
+      backdrop.classList.add("aberto");
+      setTimeout(() => {
+        document.getElementById("btnConfirmarExcluirItem").focus();
+      }, 20);
+    }
+
+    function fecharModalExcluirItem() {
+      document.getElementById("modalExcluirItem").classList.remove("aberto");
+      itemPendenteExclusao = null;
+    }
+
+    async function confirmarModalExcluirItem() {
+      if (!itemPendenteExclusao) return;
+      const { tipo, idx } = itemPendenteExclusao;
+      fecharModalExcluirItem();
+
+      if (tipo === "despesa") {
+        if (!estado.despesas[idx]) return;
+        estado.despesas.splice(idx, 1);
+        document.getElementById("resumoFinanceiro").classList.remove("visivel");
+        renderizar();
+        await salvarNoSupabase(null, false);
+      } else if (tipo === "categoria") {
+        if (!estado.categorias[idx]) return;
+        estado.categorias.splice(idx, 1);
+        document.getElementById("resumoCategorias").classList.remove("visivel");
+        renderizar();
+        await salvarNoSupabase(null, false);
+      }
+    }
+
+    document.getElementById("modalExcluirItem").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmarModalExcluirItem();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        fecharModalExcluirItem();
+      }
+    });
+
+    document.getElementById("modalExcluirItem").addEventListener("click", (e) => {
+      if (e.target.id === "modalExcluirItem") {
+        fecharModalExcluirItem();
+      }
+    });
+
     function exibirErroModal(elId, mensagem) {
       const el = document.getElementById(elId);
       if (!el) return;
@@ -2121,37 +2215,16 @@
       abrirModalEditarDespesa(idx);
     }
 
-    async function excluirDespesa(idx) {
-      const item = estado.despesas[idx];
-      if (!item) return;
-
-      const ok = confirm(
-        `Deseja excluir o lançamento ${formatarNumeroOrdem(idx)} — Data: ${formatarVencimentoTexto(item.vencimento)} | "${item.descricao}" (${formatarBRL(item.valor)})?`
-      );
-      if (!ok) return;
-
-      estado.despesas.splice(idx, 1);
-      document.getElementById("resumoFinanceiro").classList.remove("visivel");
-      renderizar();
-      await salvarNoSupabase(null, false);
+    function excluirDespesa(idx) {
+      abrirModalExcluirItem("despesa", idx);
     }
 
     function corrigirCategoria(realIdx) {
       abrirModalEditarCategoria(realIdx);
     }
 
-    async function excluirCategoria(realIdx) {
-      const item = estado.categorias[realIdx];
-      if (!item) return;
-
-      const catNorm = normalizarNomeCategoria(item.categoria);
-      const ok = confirm(`Deseja excluir [${catNorm}] "${item.descricao}" (${formatarValorTabelaCategoria({ ...item, categoria: catNorm })})?`);
-      if (!ok) return;
-
-      estado.categorias.splice(realIdx, 1);
-      document.getElementById("resumoCategorias").classList.remove("visivel");
-      renderizar();
-      await salvarNoSupabase(null, false);
+    function excluirCategoria(realIdx) {
+      abrirModalExcluirItem("categoria", realIdx);
     }
 
     function fecharContas() {
