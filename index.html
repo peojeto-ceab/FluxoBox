@@ -246,6 +246,7 @@
     .btn-danger { background: var(--danger); padding: 6px 10px; font-size: 0.8rem; }
     .btn-danger:hover { filter: brightness(1.08); }
     .btn-edit { background: #475569; padding: 6px 10px; font-size: 0.8rem; margin-right: 6px; }
+    .btn-edit:hover { background: #64748b; }
 
     .actions-bar {
       display: flex;
@@ -526,11 +527,53 @@
       margin-bottom: 14px;
     }
 
+    .modal-campos {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .modal-campo-label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .modal-erro {
+      display: none;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    .modal-erro.visivel {
+      display: block;
+    }
+
     .modal-input {
       text-align: center;
       font-weight: 700;
       letter-spacing: 0.5px;
       margin-bottom: 14px;
+    }
+
+    .modal-campos .modal-input {
+      text-align: left;
+      font-weight: 600;
+      letter-spacing: 0;
+      margin-bottom: 0;
     }
 
     .sinal-selector {
@@ -714,6 +757,60 @@
     </section>
   </div>
 
+  <!-- MODAL EDITAR CONTA -->
+  <div id="modalEditarDespesa" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalEditDespesaTitulo">
+    <div class="modal-box">
+      <div id="modalEditDespesaTitulo" class="modal-titulo">Corrigir Conta</div>
+      <p class="modal-texto">Altere os dados da conta selecionada:</p>
+      <div class="modal-campos">
+        <div>
+          <label for="editDespesaVenc" class="modal-campo-label">Data (ex: 21 ou 21/11)</label>
+          <input type="text" id="editDespesaVenc" class="modal-input" placeholder="Ex: 21 ou 21/11" />
+        </div>
+        <div>
+          <label for="editDespesaDesc" class="modal-campo-label">Descrição</label>
+          <input type="text" id="editDespesaDesc" class="modal-input" placeholder="Ex: Coelba, Claro" />
+        </div>
+        <div>
+          <label for="editDespesaVal" class="modal-campo-label">Valor em R$</label>
+          <input type="text" id="editDespesaVal" class="modal-input" placeholder="Ex: 134,15" />
+        </div>
+      </div>
+      <div id="editDespesaErro" class="modal-erro"></div>
+      <div class="modal-acoes">
+        <button type="button" class="btn-cancel" onclick="fecharModalEditarDespesa()">Cancelar</button>
+        <button type="button" class="btn-add" onclick="confirmarModalEditarDespesa()">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL EDITAR CATEGORIA -->
+  <div id="modalEditarCategoria" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalEditCatTitulo">
+    <div class="modal-box">
+      <div id="modalEditCatTitulo" class="modal-titulo">Corrigir Lançamento</div>
+      <p class="modal-texto">Altere os dados do lançamento por categoria:</p>
+      <div class="modal-campos">
+        <div>
+          <label for="editCatTipo" class="modal-campo-label">Categoria</label>
+          <select id="editCatTipo" class="modal-input"></select>
+        </div>
+        <div>
+          <label for="editCatDesc" class="modal-campo-label">Descrição</label>
+          <input type="text" id="editCatDesc" class="modal-input" placeholder="Ex: Entrega, Venda, Casa" />
+        </div>
+        <div>
+          <label for="editCatVal" class="modal-campo-label">Valor em R$</label>
+          <input type="text" id="editCatVal" class="modal-input" placeholder="Ex: 50,00" />
+        </div>
+      </div>
+      <div id="editCatErro" class="modal-erro"></div>
+      <div class="modal-acoes">
+        <button type="button" class="btn-cancel" onclick="fecharModalEditarCategoria()">Cancelar</button>
+        <button type="button" class="btn-add" onclick="confirmarModalEditarCategoria()">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL NOVA CATEGORIA -->
   <div id="modalCategoria" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalCatTitulo">
     <div class="modal-box">
@@ -771,6 +868,8 @@
     let filtroDiaAtual = "Todos";
     let filtroAtual = "Todas";
     let sinalNovaCategoria = 1;
+    let indiceEditandoDespesa = null;
+    let indiceEditandoCategoria = null;
     let etapaModalNovoMes = "input";
     let proximoMesPendente = "";
     let salvandoNaNuvem = false;
@@ -1556,6 +1655,195 @@
       }
     });
 
+    function exibirErroModal(elId, mensagem) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      if (!mensagem) {
+        el.textContent = "";
+        el.classList.remove("visivel");
+        return;
+      }
+      el.textContent = mensagem;
+      el.classList.add("visivel");
+    }
+
+    function abrirModalEditarDespesa(idx) {
+      const atual = estado.despesas[idx];
+      if (!atual) return;
+
+      indiceEditandoDespesa = idx;
+      const backdrop = document.getElementById("modalEditarDespesa");
+      const vencInput = document.getElementById("editDespesaVenc");
+      const descInput = document.getElementById("editDespesaDesc");
+      const valInput = document.getElementById("editDespesaVal");
+
+      vencInput.value = formatarVencimentoTexto(atual.vencimento);
+      descInput.value = atual.descricao || "";
+      valInput.value = Number(atual.valor || 0).toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      exibirErroModal("editDespesaErro", "");
+
+      backdrop.classList.add("aberto");
+      setTimeout(() => {
+        vencInput.focus();
+      }, 20);
+    }
+
+    function fecharModalEditarDespesa() {
+      document.getElementById("modalEditarDespesa").classList.remove("aberto");
+      indiceEditandoDespesa = null;
+      exibirErroModal("editDespesaErro", "");
+    }
+
+    async function confirmarModalEditarDespesa() {
+      if (indiceEditandoDespesa === null) return;
+      const atual = estado.despesas[indiceEditandoDespesa];
+      if (!atual) {
+        fecharModalEditarDespesa();
+        return;
+      }
+
+      const vencInput = document.getElementById("editDespesaVenc");
+      const descInput = document.getElementById("editDespesaDesc");
+      const valInput = document.getElementById("editDespesaVal");
+
+      const vencBruto = vencInput.value.trim();
+      const novaDesc = descInput.value.trim();
+      const novoVal = parseValorBRL(valInput.value);
+
+      if (!vencBruto || !novaDesc || isNaN(novoVal) || novoVal < 0) {
+        exibirErroModal("editDespesaErro", "Preencha data, descrição e um valor válido em R$.");
+        return;
+      }
+
+      const idxSalvar = indiceEditandoDespesa;
+      estado.despesas[idxSalvar] = {
+        descricao: novaDesc,
+        vencimento: formatarVencimentoTexto(vencBruto),
+        valor: novoVal,
+        paga: Boolean(atual.paga)
+      };
+      document.getElementById("resumoFinanceiro").classList.remove("visivel");
+
+      fecharModalEditarDespesa();
+      renderizar();
+      await salvarNoSupabase(null, false);
+    }
+
+    function abrirModalEditarCategoria(realIdx) {
+      const atual = estado.categorias[realIdx];
+      if (!atual) return;
+
+      indiceEditandoCategoria = realIdx;
+      const listaCats = obterListaCategorias(estado);
+      const catAtualNorm = normalizarNomeCategoria(atual.categoria);
+      if (!listaCats.includes(catAtualNorm)) {
+        listaCats.push(catAtualNorm);
+        estado.categoriasDisponiveis = listaCats;
+      }
+
+      const backdrop = document.getElementById("modalEditarCategoria");
+      const tipoSelect = document.getElementById("editCatTipo");
+      const descInput = document.getElementById("editCatDesc");
+      const valInput = document.getElementById("editCatVal");
+
+      tipoSelect.innerHTML = listaCats
+        .map((cat) => `<option value="${escaparHTML(cat)}">${escaparHTML(cat)}</option>`)
+        .join("");
+      tipoSelect.value = catAtualNorm;
+      descInput.value = atual.descricao || "";
+      valInput.value = Number(atual.valor || 0).toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      exibirErroModal("editCatErro", "");
+
+      backdrop.classList.add("aberto");
+      setTimeout(() => {
+        descInput.focus();
+      }, 20);
+    }
+
+    function fecharModalEditarCategoria() {
+      document.getElementById("modalEditarCategoria").classList.remove("aberto");
+      indiceEditandoCategoria = null;
+      exibirErroModal("editCatErro", "");
+    }
+
+    async function confirmarModalEditarCategoria() {
+      if (indiceEditandoCategoria === null) return;
+      const atual = estado.categorias[indiceEditandoCategoria];
+      if (!atual) {
+        fecharModalEditarCategoria();
+        return;
+      }
+
+      const tipoSelect = document.getElementById("editCatTipo");
+      const descInput = document.getElementById("editCatDesc");
+      const valInput = document.getElementById("editCatVal");
+
+      const formatada = normalizarNomeCategoria(tipoSelect.value);
+      const novaDesc = descInput.value.trim();
+      const novoVal = parseValorBRL(valInput.value);
+
+      if (!formatada || !novaDesc || isNaN(novoVal) || novoVal < 0) {
+        exibirErroModal("editCatErro", "Informe categoria, descrição e um valor válido em R$.");
+        return;
+      }
+
+      const mapaSinais = obterMapaSinaisCategorias(estado);
+      if (mapaSinais[formatada] === undefined) {
+        mapaSinais[formatada] = 1;
+        estado.sinaisCategorias = mapaSinais;
+      }
+
+      const idxSalvar = indiceEditandoCategoria;
+      estado.categorias[idxSalvar] = {
+        categoria: formatada,
+        descricao: novaDesc,
+        valor: novoVal
+      };
+      document.getElementById("resumoCategorias").classList.remove("visivel");
+
+      fecharModalEditarCategoria();
+      renderizar();
+      await salvarNoSupabase(null, false);
+    }
+
+    document.getElementById("modalEditarDespesa").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmarModalEditarDespesa();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        fecharModalEditarDespesa();
+      }
+    });
+
+    document.getElementById("modalEditarDespesa").addEventListener("click", (e) => {
+      if (e.target.id === "modalEditarDespesa") {
+        fecharModalEditarDespesa();
+      }
+    });
+
+    document.getElementById("modalEditarCategoria").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmarModalEditarCategoria();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        fecharModalEditarCategoria();
+      }
+    });
+
+    document.getElementById("modalEditarCategoria").addEventListener("click", (e) => {
+      if (e.target.id === "modalEditarCategoria") {
+        fecharModalEditarCategoria();
+      }
+    });
+
     function definirFiltroDia(dia) {
       filtroDiaAtual = dia;
       renderizarContas();
@@ -1829,34 +2117,8 @@
       await salvarNoSupabase(null, false);
     });
 
-    async function corrigirDespesa(idx) {
-      const atual = estado.despesas[idx];
-      if (!atual) return;
-
-      const novoVencTexto = prompt("Nova data (ex: 21 ou 21/11):", formatarVencimentoTexto(atual.vencimento));
-      if (novoVencTexto === null) return;
-
-      const novaDesc = prompt("Nova descrição:", atual.descricao);
-      if (novaDesc === null) return;
-
-      const novoValTexto = prompt("Novo valor em R$:", String(atual.valor).replace(".", ","));
-      if (novoValTexto === null) return;
-
-      const novoVal = parseValorBRL(novoValTexto);
-      if (!novaDesc.trim() || !novoVencTexto.trim() || isNaN(novoVal) || novoVal < 0) {
-        alert("Dados inválidos. Nenhuma alteração foi feita.");
-        return;
-      }
-
-      estado.despesas[idx] = {
-        descricao: novaDesc.trim(),
-        vencimento: formatarVencimentoTexto(novoVencTexto),
-        valor: novoVal,
-        paga: Boolean(atual.paga)
-      };
-      document.getElementById("resumoFinanceiro").classList.remove("visivel");
-      renderizar();
-      await salvarNoSupabase(null, false);
+    function corrigirDespesa(idx) {
+      abrirModalEditarDespesa(idx);
     }
 
     async function excluirDespesa(idx) {
@@ -1874,48 +2136,8 @@
       await salvarNoSupabase(null, false);
     }
 
-    async function corrigirCategoria(realIdx) {
-      const atual = estado.categorias[realIdx];
-      if (!atual) return;
-
-      const listaCats = obterListaCategorias(estado);
-      const catAtualNorm = normalizarNomeCategoria(atual.categoria);
-      const novaCat = prompt(`Categoria (${listaCats.join(", ")}):`, catAtualNorm);
-      if (novaCat === null) return;
-
-      const formatada = formatarNomeCategoria(novaCat);
-      if (!formatada) {
-        alert("Categoria inválida.");
-        return;
-      }
-
-      if (!listaCats.includes(formatada)) {
-        listaCats.push(formatada);
-        estado.categoriasDisponiveis = listaCats;
-      }
-
-      const mapaSinais = obterMapaSinaisCategorias(estado);
-      if (mapaSinais[formatada] === undefined) {
-        mapaSinais[formatada] = 1;
-        estado.sinaisCategorias = mapaSinais;
-      }
-
-      const novaDesc = prompt("Nova descrição:", atual.descricao);
-      if (novaDesc === null) return;
-
-      const novoValTexto = prompt("Novo valor em R$:", String(atual.valor).replace(".", ","));
-      if (novoValTexto === null) return;
-
-      const novoVal = parseValorBRL(novoValTexto);
-      if (!novaDesc.trim() || isNaN(novoVal) || novoVal < 0) {
-        alert("Dados inválidos. Nenhuma alteração foi feita.");
-        return;
-      }
-
-      estado.categorias[realIdx] = { categoria: formatada, descricao: novaDesc.trim(), valor: novoVal };
-      document.getElementById("resumoCategorias").classList.remove("visivel");
-      renderizar();
-      await salvarNoSupabase(null, false);
+    function corrigirCategoria(realIdx) {
+      abrirModalEditarCategoria(realIdx);
     }
 
     async function excluirCategoria(realIdx) {
