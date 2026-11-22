@@ -96,29 +96,6 @@
       align-items: stretch;
     }
 
-    .cat-select-wrap {
-      display: flex;
-      gap: 6px;
-      align-items: stretch;
-    }
-
-    .btn-nova-cat {
-      background: rgba(16, 185, 129, 0.14);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.4);
-      padding: 0 12px;
-      font-size: 0.85rem;
-      white-space: nowrap;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .btn-nova-cat:hover {
-      background: rgba(16, 185, 129, 0.24);
-      border-color: var(--accent);
-    }
-
     @media (max-width: 720px) {
       .form-categorias { grid-template-columns: 1fr; }
     }
@@ -475,14 +452,12 @@
       <div class="card-title">2. Lançamento por Categoria</div>
 
       <form id="formCategoria" class="form-categorias">
-        <div class="cat-select-wrap">
-          <select id="catTipo" required aria-label="Selecionar categoria">
-            <option value="Frete">Frete</option>
-            <option value="Vendas">Vendas</option>
-            <option value="Casa">Casa</option>
-          </select>
-          <button type="button" class="btn-nova-cat" onclick="abrirModalCategoria()" title="Adicionar nova categoria">+ Categoria</button>
-        </div>
+        <select id="catTipo" required aria-label="Selecionar categoria">
+          <option value="Frete">Frete</option>
+          <option value="Vendas">Vendas</option>
+          <option value="Casa">Casa</option>
+          <option value="__NOVA_CATEGORIA__">+ Nova categoria...</option>
+        </select>
         <input type="text" id="catDescricao" placeholder="Descrição (ex: Entrega, Venda, Casa)" required />
         <input type="text" id="catValor" placeholder="Valor em R$ (ex: 50,00)" required />
         <button type="submit" class="btn-add">Adicionar</button>
@@ -606,10 +581,12 @@
     const CATEGORIAS_PADRAO = ["Frete", "Vendas", "Casa"];
     const CATEGORIAS_ENTRADA = ["Frete", "Vendas"];
     const CATEGORIAS_SAIDA_CASA = ["Casa", "Mercado", "Farmácia"];
+    const OPCAO_NOVA_CATEGORIA = "__NOVA_CATEGORIA__";
 
     let filtroDiaAtual = "Todos";
     let filtroAtual = "Todas";
     let sinalNovaCategoria = 1;
+    let categoriaAnteriorSelect = "Frete";
     let etapaModalNovoMes = "input";
     let proximoMesPendente = "";
     let salvandoNaNuvem = false;
@@ -1141,11 +1118,16 @@
       const select = document.getElementById("catTipo");
       if (select) {
         const valorAnterior = formatarNomeCategoria(select.value);
-        select.innerHTML = listaCats
-          .map((cat) => `<option value="${escaparHTML(cat)}">${escaparHTML(cat)}</option>`)
-          .join("");
+        select.innerHTML = [
+          ...listaCats.map((cat) => `<option value="${escaparHTML(cat)}">${escaparHTML(cat)}</option>`),
+          `<option value="${OPCAO_NOVA_CATEGORIA}">+ Nova categoria...</option>`
+        ].join("");
         if (listaCats.includes(valorAnterior)) {
           select.value = valorAnterior;
+          categoriaAnteriorSelect = valorAnterior;
+        } else if (listaCats.length > 0) {
+          select.value = listaCats[0];
+          categoriaAnteriorSelect = listaCats[0];
         }
       }
 
@@ -1192,6 +1174,11 @@
 
     function fecharModalCategoria() {
       document.getElementById("modalCategoria").classList.remove("aberto");
+      const select = document.getElementById("catTipo");
+      if (select && select.value === OPCAO_NOVA_CATEGORIA) {
+        const listaCats = obterListaCategorias(estado);
+        select.value = listaCats.includes(categoriaAnteriorSelect) ? categoriaAnteriorSelect : (listaCats[0] || "Frete");
+      }
     }
 
     async function confirmarModalCategoria() {
@@ -1215,18 +1202,27 @@
       mapaSinais[categoriaFinal] = sinalNovaCategoria;
       estado.sinaisCategorias = mapaSinais;
 
-      fecharModalCategoria();
+      document.getElementById("modalCategoria").classList.remove("aberto");
       renderizarControlesCategoria();
       salvarEstadoLocal();
 
       const select = document.getElementById("catTipo");
       if (select) {
         select.value = categoriaFinal;
+        categoriaAnteriorSelect = categoriaFinal;
       }
       document.getElementById("catDescricao").focus();
 
       await salvarNoSupabase(null, false);
     }
+
+    document.getElementById("catTipo").addEventListener("change", (e) => {
+      if (e.target.value === OPCAO_NOVA_CATEGORIA) {
+        abrirModalCategoria();
+      } else {
+        categoriaAnteriorSelect = e.target.value;
+      }
+    });
 
     document.getElementById("modalInputCategoria").addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -1476,6 +1472,11 @@
       const tipoSelect = document.getElementById("catTipo");
       const descInput = document.getElementById("catDescricao");
       const valInput = document.getElementById("catValor");
+
+      if (tipoSelect.value === OPCAO_NOVA_CATEGORIA) {
+        abrirModalCategoria();
+        return;
+      }
 
       const categoria = normalizarNomeCategoria(tipoSelect.value);
       const descricao = descInput.value.trim();
