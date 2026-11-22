@@ -319,6 +319,12 @@
       text-transform: uppercase;
     }
 
+    th.status-col, td.status-cell {
+      text-align: center;
+      width: 72px;
+      white-space: nowrap;
+    }
+
     th.acoes-col, td.acoes {
       text-align: right;
       white-space: nowrap;
@@ -327,12 +333,6 @@
     td.num { width: 55px; font-weight: 700; color: var(--muted); }
     td.venc { white-space: nowrap; color: #cbd5e1; font-weight: 600; }
     td.val { font-weight: 700; white-space: nowrap; }
-
-    .valor-com-check {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
 
     .check-pago {
       appearance: none;
@@ -348,6 +348,7 @@
       place-content: center;
       transition: 0.15s ease;
       padding: 0;
+      vertical-align: middle;
     }
 
     .check-pago:hover {
@@ -371,7 +372,7 @@
       opacity: 0.72;
     }
 
-    tr.conta-paga td.val .valor-texto {
+    tr.conta-paga td.val {
       color: #34d399;
       text-decoration: line-through;
       text-decoration-thickness: 1.5px;
@@ -384,8 +385,8 @@
         font-size: 11px;
       }
 
-      .valor-com-check {
-        gap: 5px;
+      th.status-col, td.status-cell {
+        width: 44px;
       }
 
       .check-pago {
@@ -608,6 +609,7 @@
               <th>Data</th>
               <th>Descrição</th>
               <th>Valor</th>
+              <th class="status-col">Status</th>
               <th class="acoes-col">Ações</th>
             </tr>
           </thead>
@@ -1619,7 +1621,7 @@
           filtroDiaAtual === "Todos"
             ? "Nenhuma conta registrada neste mês."
             : `Nenhuma conta com data no Dia ${escaparHTML(filtroDiaAtual)} neste mês.`;
-        tbody.innerHTML = `<tr><td colspan="5" class="empty">${msgVazio}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="empty">${msgVazio}</td></tr>`;
         return;
       }
 
@@ -1631,17 +1633,15 @@
           <td class="num">${formatarNumeroOrdem(idx)}</td>
           <td class="venc">${escaparHTML(formatarVencimentoTexto(item.vencimento))}</td>
           <td>${escaparHTML(item.descricao)}</td>
-          <td class="val">
-            <span class="valor-com-check">
-              <span class="valor-texto">${formatarBRL(item.valor)}</span>
-              <input
-                type="checkbox"
-                class="check-pago"
-                aria-label="Marcar ${escaparHTML(item.descricao)} como paga"
-                ${paga ? "checked" : ""}
-                onchange="alternarContaPaga(${item.realIdx}, this.checked)"
-              />
-            </span>
+          <td class="val">${formatarBRL(item.valor)}</td>
+          <td class="status-cell">
+            <input
+              type="checkbox"
+              class="check-pago"
+              aria-label="Marcar ${escaparHTML(item.descricao)} como paga"
+              ${paga ? "checked" : ""}
+              onchange="alternarContaPaga(${item.realIdx}, this.checked)"
+            />
           </td>
           <td class="acoes">
             <button type="button" class="btn-edit" onclick="corrigirDespesa(${item.realIdx})">Corrigir</button>
