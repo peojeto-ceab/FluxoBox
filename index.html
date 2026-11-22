@@ -328,11 +328,74 @@
     td.venc { white-space: nowrap; color: #cbd5e1; font-weight: 600; }
     td.val { font-weight: 700; white-space: nowrap; }
 
+    .valor-com-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .check-pago {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      min-width: 18px;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      background: var(--card-2);
+      cursor: pointer;
+      display: inline-grid;
+      place-content: center;
+      transition: 0.15s ease;
+      padding: 0;
+    }
+
+    .check-pago:hover {
+      border-color: var(--accent);
+    }
+
+    .check-pago:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .check-pago:checked::after {
+      content: "✓";
+      color: #06281e;
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    tr.conta-paga td {
+      opacity: 0.72;
+    }
+
+    tr.conta-paga td.val .valor-texto {
+      color: #34d399;
+      text-decoration: line-through;
+      text-decoration-thickness: 1.5px;
+    }
+
     @media (max-width: 600px) {
       .tabela-scroll th,
       .tabela-scroll td {
         padding: 7px 5px;
         font-size: 11px;
+      }
+
+      .valor-com-check {
+        gap: 5px;
+      }
+
+      .check-pago {
+        width: 15px;
+        height: 15px;
+        min-width: 15px;
+      }
+
+      .check-pago:checked::after {
+        font-size: 10px;
       }
 
       .tabela-scroll .btn-edit,
@@ -822,7 +885,8 @@
         ? lista.map((d) => ({
             descricao: d.descricao || "",
             vencimento: formatarVencimentoTexto(d.vencimento),
-            valor: Number(d.valor) || 0
+            valor: Number(d.valor) || 0,
+            paga: Boolean(d.paga)
           }))
         : [];
     }
@@ -1528,6 +1592,15 @@
         .join("");
     }
 
+    async function alternarContaPaga(idx, marcada) {
+      const item = estado.despesas[idx];
+      if (!item) return;
+
+      item.paga = Boolean(marcada);
+      renderizarContas();
+      await salvarNoSupabase(null, false);
+    }
+
     function renderizarContas() {
       renderizarBotoesFiltroDia();
 
@@ -1551,12 +1624,25 @@
       }
 
       listaFiltrada.forEach((item, idx) => {
+        const paga = Boolean(item.paga);
         const tr = document.createElement("tr");
+        if (paga) tr.classList.add("conta-paga");
         tr.innerHTML = `
           <td class="num">${formatarNumeroOrdem(idx)}</td>
           <td class="venc">${escaparHTML(formatarVencimentoTexto(item.vencimento))}</td>
           <td>${escaparHTML(item.descricao)}</td>
-          <td class="val">${formatarBRL(item.valor)}</td>
+          <td class="val">
+            <span class="valor-com-check">
+              <span class="valor-texto">${formatarBRL(item.valor)}</span>
+              <input
+                type="checkbox"
+                class="check-pago"
+                aria-label="Marcar ${escaparHTML(item.descricao)} como paga"
+                ${paga ? "checked" : ""}
+                onchange="alternarContaPaga(${item.realIdx}, this.checked)"
+              />
+            </span>
+          </td>
           <td class="acoes">
             <button type="button" class="btn-edit" onclick="corrigirDespesa(${item.realIdx})">Corrigir</button>
             <button type="button" class="btn-danger" onclick="excluirDespesa(${item.realIdx})">Excluir</button>
@@ -1705,7 +1791,7 @@
         if (!confirmar) return;
       }
 
-      estado.despesas.push({ descricao, vencimento, valor });
+      estado.despesas.push({ descricao, vencimento, valor, paga: false });
       document.getElementById("resumoFinanceiro").classList.remove("visivel");
 
       descInput.value = "";
@@ -1765,7 +1851,8 @@
       estado.despesas[idx] = {
         descricao: novaDesc.trim(),
         vencimento: formatarVencimentoTexto(novoVencTexto),
-        valor: novoVal
+        valor: novoVal,
+        paga: Boolean(atual.paga)
       };
       document.getElementById("resumoFinanceiro").classList.remove("visivel");
       renderizar();
