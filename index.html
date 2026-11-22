@@ -397,13 +397,13 @@
       background: var(--card-2);
       border: 1px solid var(--border);
       color: var(--muted);
-      padding: 11px 12px;
-      font-size: 0.9rem;
-      font-weight: 700;
+      padding: 12px 14px;
+      font-size: 1.25rem;
+      font-weight: 800;
+      line-height: 1;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
     }
 
     .btn-sinal.ativo-pos {
@@ -573,12 +573,8 @@
       <p class="modal-texto">Digite o nome da categoria e escolha se ela é positiva ou negativa:</p>
       <input type="text" id="modalInputCategoria" class="modal-input" placeholder="Ex: Combustível" maxlength="30" />
       <div class="sinal-selector" role="group" aria-label="Tipo da categoria">
-        <button type="button" id="btnSinalPositivo" class="btn-sinal ativo-pos" onclick="selecionarSinalCategoria(1)">
-          <span>+</span> Positivo (Verde)
-        </button>
-        <button type="button" id="btnSinalNegativo" class="btn-sinal" onclick="selecionarSinalCategoria(-1)">
-          <span>-</span> Negativo (Vermelho)
-        </button>
+        <button type="button" id="btnSinalPositivo" class="btn-sinal ativo-pos" onclick="selecionarSinalCategoria(1)" aria-label="Positivo">+</button>
+        <button type="button" id="btnSinalNegativo" class="btn-sinal" onclick="selecionarSinalCategoria(-1)" aria-label="Negativo">-</button>
       </div>
       <div class="modal-acoes">
         <button type="button" class="btn-cancel" onclick="fecharModalCategoria()">Cancelar</button>
@@ -1091,10 +1087,7 @@
       if (select) {
         const valorAnterior = formatarNomeCategoria(select.value);
         select.innerHTML = listaCats
-          .map((cat) => {
-            const sinalLabel = isCategoriaSaidaCasa(cat) ? "-" : "+";
-            return `<option value="${escaparHTML(cat)}">${sinalLabel} ${escaparHTML(cat)}</option>`;
-          })
+          .map((cat) => `<option value="${escaparHTML(cat)}">${escaparHTML(cat)}</option>`)
           .join("");
         if (listaCats.includes(valorAnterior)) {
           select.value = valorAnterior;
