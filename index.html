@@ -149,7 +149,7 @@
       box-shadow: 0 18px 40px rgba(2, 6, 23, 0.72);
       z-index: 200;
       display: none;
-      max-height: 270px;
+      max-height: 290px;
       overflow-y: auto;
     }
 
@@ -184,7 +184,7 @@
     .custom-select-option.nova-cat {
       margin-top: 4px;
       border-top: 1px solid var(--border);
-      border-radius: 0 0 7px 7px;
+      border-radius: 7px;
       padding-top: 10px;
       color: #34d399;
       background: rgba(16, 185, 129, 0.08);
@@ -192,6 +192,17 @@
 
     .custom-select-option.nova-cat:hover {
       background: rgba(16, 185, 129, 0.18);
+    }
+
+    .custom-select-option.remover-cat {
+      margin-top: 4px;
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.28);
+    }
+
+    .custom-select-option.remover-cat:hover {
+      background: rgba(239, 68, 68, 0.2);
     }
 
     input, select {
@@ -233,6 +244,7 @@
     .btn-cancel:hover { background: #475569; }
 
     .btn-danger { background: var(--danger); padding: 6px 10px; font-size: 0.8rem; }
+    .btn-danger:hover { filter: brightness(1.08); }
     .btn-edit { background: #475569; padding: 6px 10px; font-size: 0.8rem; margin-right: 6px; }
 
     .actions-bar {
@@ -654,6 +666,19 @@
     </div>
   </div>
 
+  <!-- MODAL REMOVER CATEGORIA -->
+  <div id="modalRemoverCategoria" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalRemCatTitulo">
+    <div class="modal-box">
+      <div id="modalRemCatTitulo" class="modal-titulo" style="color: #f87171;">Remover Categoria</div>
+      <p id="modalRemCatTexto" class="modal-texto">Selecione uma categoria criada para remover:</p>
+      <select id="modalSelectRemoverCategoria" class="modal-input"></select>
+      <div class="modal-acoes">
+        <button type="button" class="btn-cancel" onclick="fecharModalRemoverCategoria()">Cancelar</button>
+        <button type="button" id="btnConfirmarRemoverCategoria" class="btn-danger" style="padding: 10px 14px; font-size: 0.9rem;" onclick="confirmarRemoverCategoria()">Remover</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL CENTRALIZADO ESTILO DO SITE -->
   <div id="modalNovoMes" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
     <div class="modal-box">
@@ -704,6 +729,11 @@
 
     function normalizarNomeCategoria(cat) {
       return formatarNomeCategoria(cat) || "Frete";
+    }
+
+    function isCategoriaPadraoProtegida(cat) {
+      const fmt = normalizarNomeCategoria(cat);
+      return CATEGORIAS_PADRAO.some((p) => p.toLowerCase() === fmt.toLowerCase());
     }
 
     function obterMapaSinaisCategorias(raw) {
@@ -1268,6 +1298,11 @@
             <button type="button" class="custom-select-option nova-cat" onclick="abrirModalCategoria()">
               <span>+ Nova categoria...</span>
             </button>
+          `,
+          `
+            <button type="button" class="custom-select-option remover-cat" onclick="abrirModalRemoverCategoria()">
+              <span>- Remover categoria</span>
+            </button>
           `
         ].join("");
       }
@@ -1351,6 +1386,78 @@
       await salvarNoSupabase(null, false);
     }
 
+    function abrirModalRemoverCategoria() {
+      fecharMenuCategoria();
+      const listaCats = obterListaCategorias(estado);
+      const removiveis = listaCats.filter((cat) => !isCategoriaPadraoProtegida(cat));
+
+      const backdrop = document.getElementById("modalRemoverCategoria");
+      const texto = document.getElementById("modalRemCatTexto");
+      const select = document.getElementById("modalSelectRemoverCategoria");
+      const btnConfirmar = document.getElementById("btnConfirmarRemoverCategoria");
+
+      if (removiveis.length === 0) {
+        texto.textContent = "Não há categorias personalizadas para remover (Frete, Vendas e Casa são padrão).";
+        select.style.display = "none";
+        btnConfirmar.style.display = "none";
+      } else {
+        texto.textContent = "Escolha qual categoria você deseja remover:";
+        select.style.display = "block";
+        btnConfirmar.style.display = "inline-block";
+        select.innerHTML = removiveis
+          .map((cat) => `<option value="${escaparHTML(cat)}">${escaparHTML(cat)}</option>`)
+          .join("");
+      }
+
+      backdrop.classList.add("aberto");
+      setTimeout(() => {
+        if (removiveis.length > 0) select.focus();
+      }, 20);
+    }
+
+    function fecharModalRemoverCategoria() {
+      document.getElementById("modalRemoverCategoria").classList.remove("aberto");
+    }
+
+    async function confirmarRemoverCategoria() {
+      const select = document.getElementById("modalSelectRemoverCategoria");
+      const alvo = normalizarNomeCategoria(select.value);
+      if (!alvo || isCategoriaPadraoProtegida(alvo)) {
+        fecharModalRemoverCategoria();
+        return;
+      }
+
+      estado.categoriasDisponiveis = obterListaCategorias(estado).filter(
+        (cat) => cat.toLowerCase() !== alvo.toLowerCase()
+      );
+
+      const mapaSinais = { ...obterMapaSinaisCategorias(estado) };
+      Object.keys(mapaSinais).forEach((chave) => {
+        if (chave.toLowerCase() === alvo.toLowerCase()) {
+          delete mapaSinais[chave];
+        }
+      });
+      estado.sinaisCategorias = mapaSinais;
+
+      estado.categorias = estado.categorias.filter(
+        (item) => normalizarNomeCategoria(item.categoria).toLowerCase() !== alvo.toLowerCase()
+      );
+
+      const hidden = document.getElementById("catTipo");
+      if (hidden && hidden.value.toLowerCase() === alvo.toLowerCase()) {
+        hidden.value = estado.categoriasDisponiveis[0] || "Frete";
+      }
+
+      if (filtroAtual.toLowerCase() === alvo.toLowerCase()) {
+        filtroAtual = "Todas";
+      }
+
+      document.getElementById("resumoCategorias").classList.remove("visivel");
+      fecharModalRemoverCategoria();
+      renderizar();
+      await salvarNoSupabase(null, false);
+    }
+
     document.getElementById("modalInputCategoria").addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -1364,6 +1471,22 @@
     document.getElementById("modalCategoria").addEventListener("click", (e) => {
       if (e.target.id === "modalCategoria") {
         fecharModalCategoria();
+      }
+    });
+
+    document.getElementById("modalRemoverCategoria").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmarRemoverCategoria();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        fecharModalRemoverCategoria();
+      }
+    });
+
+    document.getElementById("modalRemoverCategoria").addEventListener("click", (e) => {
+      if (e.target.id === "modalRemoverCategoria") {
+        fecharModalRemoverCategoria();
       }
     });
 
